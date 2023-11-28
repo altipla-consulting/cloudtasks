@@ -26,7 +26,9 @@ var (
 	serviceAccountEmail         string
 )
 
+// Queue abstract any remote or local system that can execute a task.
 type Queue interface {
+	// Send a new task to the queue.
 	Send(ctx context.Context, task *Task) error
 }
 
@@ -36,6 +38,10 @@ type router interface {
 
 type QueueOption func(*gcloudQueue)
 
+// NewQueue initializes a new queue. It needs:
+// - Some kind of router like github.com/altipla-consulting/doris
+// - The Cloud Run project hash. For example if you have URLs like "https://foo-service-9omj3qcv6b-ew.a.run.app/" the hash will be "9omj3qcv6b".
+// - The queue name.
 func NewQueue(r router, runProjectHash string, name string, opts ...QueueOption) Queue {
 	if runProjectHash == "" {
 		panic("cloudtasks: runProjectHash cannot be empty")
@@ -54,6 +60,7 @@ func NewQueue(r router, runProjectHash string, name string, opts ...QueueOption)
 	}
 }
 
+// WithRegion configures a custom region for the queue. By default it will use the region of the Cloud Run service.
 func WithRegion(region string) QueueOption {
 	return func(queue *gcloudQueue) {
 		queue.region = region

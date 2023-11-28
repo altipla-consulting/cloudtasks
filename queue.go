@@ -47,17 +47,16 @@ func NewQueue(r router, runProjectHash string, name string, opts ...QueueOption)
 		panic("cloudtasks: runProjectHash cannot be empty")
 	}
 
-	r.Post("/_cloudtasks/"+name, taskHandler(runProjectHash))
-
 	if os.Getenv("K_SERVICE") == "" {
-		return &localQueue{
-			name: name,
-		}
+		return new(localQueue)
 	}
-	return &gcloudQueue{
+
+	queue := &gcloudQueue{
 		name:           name,
 		runProjectHash: runProjectHash,
 	}
+	r.Post("/_cloudtasks/"+name, queue.taskHandler)
+	return queue
 }
 
 // WithRegion configures a custom region for the queue. By default it will use the region of the Cloud Run service.
@@ -160,69 +159,60 @@ func createTask(ctx context.Context, req *pb.CreateTaskRequest) error {
 	return err
 }
 
-type localQueue struct {
-	name string
-}
-
-func (queue *localQueue) Send(ctx context.Context, task *Task) error {
-	if err := funcs[task.key].h(ctx, task); err != nil {
-		return fmt.Errorf("cloudtasks: cannot execute task %q: %w", task.key, err)
+func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) error {
+	initOnce.Do(func() {
+		initErr = initGlobals(r.Context())
+	})
+	if initErr != nil {
+		return initErr
 	}
-	return nil
-}
 
-func taskHandler(runProjectHash string) func(w http.ResponseWriter, r *http.Request) error {
-	return func(w http.ResponseWriter, r *http.Request) error {
-		initOnce.Do(func() {
-			initErr = initGlobals(r.Context())
-		})
-		if initErr != nil {
-			return initErr
-		}
-
-		bearer := extractBearer(r.Header.Get("Authorization"))
-		if bearer == "" {
-			http.Error(w, fmt.Sprintf("cloudtasks: bad token format: %q", r.Header.Get("Authorization")), http.StatusUnauthorized)
-			return nil
-		}
-		audience := fmt.Sprintf("https://%s-%s-ew.a.run.app/", os.Getenv("K_SERVICE"), runProjectHash)
-		jwt, err := idtoken.Validate(r.Context(), bearer, audience)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: %s", bearer, err), http.StatusUnauthorized)
-			return nil
-		}
-		email, _ := jwt.Claims["email"].(string)
-		if email != serviceAccountEmail {
-			http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: invalid email %q", bearer, email), http.StatusUnauthorized)
-			return nil
-		}
-
-		key := r.Header.Get("X-Altipla-Task")
-		if key == "" {
-			http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: missing task key", bearer), http.StatusUnauthorized)
-			return nil
-		}
-
-		payload, err := io.ReadAll(r.Body)
-		if err != nil {
-			return fmt.Errorf("cloudtasks: cannot read task payload: %w", err)
-		}
-		retries, err := strconv.ParseInt(r.Header.Get("X-CloudTasks-TaskRetryCount"), 10, 64)
-		if err != nil {
-			return fmt.Errorf("cloudtasks: cannot parse task retry count: %w", err)
-		}
-		task := &Task{
-			key:     key,
-			name:    r.Header.Get("X-CloudTasks-TaskName"),
-			payload: payload,
-			Retries: retries,
-		}
-		if err := funcs[key].h(r.Context(), task); err != nil {
-			return fmt.Errorf("cloudtasks: cannot execute task %q: %w", key, err)
-		}
-
+	bearer := extractBearer(r.Header.Get("Authorization"))
+	if bearer == "" {
+		http.Error(w, fmt.Sprintf("cloudtasks: bad token format: %q", r.Header.Get("Authorization")), http.StatusUnauthorized)
 		return nil
 	}
+	region := queue.region
+	if region == "" {
+		region = googleRegion
+	}
+	audience := fmt.Sprintf("https://%s-%s-%s.a.run.app/", os.Getenv("K_SERVICE"), queue.runProjectHash, regionCode(region))
+	jwt, err := idtoken.Validate(r.Context(), bearer, audience)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: %s", bearer, err), http.StatusUnauthorized)
+		return nil
+	}
+	email, _ := jwt.Claims["email"].(string)
+	if email != serviceAccountEmail {
+		http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: invalid email %q", bearer, email), http.StatusUnauthorized)
+		return nil
+	}
+
+	key := r.Header.Get("X-Altipla-Task")
+	if key == "" {
+		http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: missing task key", bearer), http.StatusUnauthorized)
+		return nil
+	}
+
+	payload, err := io.ReadAll(r.Body)
+	if err != nil {
+		return fmt.Errorf("cloudtasks: cannot read task payload: %w", err)
+	}
+	retries, err := strconv.ParseInt(r.Header.Get("X-CloudTasks-TaskRetryCount"), 10, 64)
+	if err != nil {
+		return fmt.Errorf("cloudtasks: cannot parse task retry count: %w", err)
+	}
+	task := &Task{
+		key:     key,
+		name:    r.Header.Get("X-CloudTasks-TaskName"),
+		payload: payload,
+		Retries: retries,
+	}
+	if err := funcs[key].h(r.Context(), task); err != nil {
+		return fmt.Errorf("cloudtasks: cannot execute task %q: %w", key, err)
+	}
+
+	return nil
 }
 
 func extractBearer(authorization string) string {
@@ -231,4 +221,14 @@ func extractBearer(authorization string) string {
 		return ""
 	}
 	return parts[1]
+}
+
+type localQueue struct {
+}
+
+func (queue *localQueue) Send(ctx context.Context, task *Task) error {
+	if err := funcs[task.key].h(ctx, task); err != nil {
+		return fmt.Errorf("cloudtasks: cannot execute task %q: %w", task.key, err)
+	}
+	return nil
 }

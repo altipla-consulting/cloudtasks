@@ -1,6 +1,6 @@
 module github.com/altipla-consulting/cloudtasks
 
-go 1.21.4
+go 1.21
 
 require (
 	cloud.google.com/go/cloudtasks v1.11.1

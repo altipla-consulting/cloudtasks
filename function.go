@@ -17,6 +17,7 @@ var (
 	errorType   = reflect.TypeOf((*error)(nil)).Elem()
 )
 
+// Handler should be implemented by any task function.
 type Handler func(ctx context.Context, task *Task) error
 
 // Function is a stored task implementation.

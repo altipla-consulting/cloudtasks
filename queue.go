@@ -36,6 +36,7 @@ type router interface {
 	Post(string, func(http.ResponseWriter, *http.Request) error)
 }
 
+// QueueOption configures queues when creating them.
 type QueueOption func(*gcloudQueue)
 
 // NewQueue initializes a new queue. It needs:

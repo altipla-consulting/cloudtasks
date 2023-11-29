@@ -85,7 +85,7 @@ func FooHandler(...) {
   // ... other code
 
   var arg int64
-  if err := fooTask.Call(r.Context(), models.QueueFoo, arg); err != nil {
+  if err := fooFn.Call(r.Context(), models.QueueFoo, arg); err != nil {
     return errors.Trace(err)
   }
 

@@ -21,15 +21,15 @@ To set up the queue system with its corresponding models and APIs, you'll need t
 
 ```go
 func main() {
-	s := doris.NewServer()
+  s := doris.NewServer()
 
-	if err := models.ConnectQueues(s); err != nil {
-		log.Fatal(err)
-	}
+  if err := models.ConnectQueues(s); err != nil {
+    log.Fatal(err)
+  }
 
   ...
 
-	s.Serve()
+  s.Serve()
 }
 ```
 

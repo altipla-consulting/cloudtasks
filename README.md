@@ -17,7 +17,7 @@ go get github.com/altipla-consulting/cloudtasks
 
 ### Declare queues
 
-To set up the queue system with its corresponding models and APIs, you'll need to instantiate a [github.com/altipla-consulting/doris](doris).Server in your application's main function. Any other server that can register the handler will do too.
+To set up the queue system with its corresponding models and APIs, you'll need to instantiate a [doris](github.com/altipla-consulting/doris).Server in your application's main function. Any other server that can register the handler will do too.
 
 ```go
 func main() {

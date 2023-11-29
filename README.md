@@ -3,7 +3,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/altipla-consulting/cloudtasks.svg)](https://pkg.go.dev/github.com/altipla-consulting/cloudtasks)
 
-Google Cloud Tasks integration.
+Google Cloud Tasks integration with Cloud Run apps.
 
 
 ## Install
@@ -42,8 +42,10 @@ var (
 )
 
 func ConnectQueues(s *doris.Server) error {
-  QueueFoo = cloudtasks.NewQueue(s, "fooProjectHash", "foo")
-  QueueBar = cloudtasks.NewQueue(s, "fooProjectHash", "bar")
+  // PROJECT_HASH should be replaced by your Cloud Run project hash.
+  // For example if you have URLs like "https://foo-service-9omj3qcv6b-ew.a.run.app/" the hash will be "9omj3qcv6b".
+  QueueFoo = cloudtasks.NewQueue(s, "PROJECT_HASH", "foo")
+  QueueBar = cloudtasks.NewQueue(s, "PROJECT_HASH", "bar")
 
   return nil
 }

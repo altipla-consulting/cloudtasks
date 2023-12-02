@@ -71,7 +71,6 @@ type gcloudQueue struct {
 	name           string
 	region         string
 	runProjectHash string
-	target         string
 }
 
 func initGlobals(ctx context.Context) error {
@@ -119,7 +118,7 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 			MessageType: &pb.Task_HttpRequest{
 				HttpRequest: &pb.HttpRequest{
 					HttpMethod: pb.HttpMethod_POST,
-					Url:        queue.target,
+					Url:        fmt.Sprintf("https://%s-%s-ew.a.run.app/_cloudtasks/%s", os.Getenv("K_SERVICE"), queue.runProjectHash, queue.name),
 					Body:       task.payload,
 					Headers: map[string]string{
 						"Content-Type":   "application/json",

@@ -2,9 +2,11 @@ package cloudtasks
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -111,7 +113,6 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 	if region == "" {
 		region = googleRegion
 	}
-	audience := fmt.Sprintf("https://%s-%s-ew.a.run.app/", os.Getenv("K_SERVICE"), queue.runProjectHash)
 	req := &pb.CreateTaskRequest{
 		Parent: strings.Join([]string{"projects", googleProject, "locations", region, "queues", queue.name}, "/"),
 		Task: &pb.Task{
@@ -127,7 +128,65 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 					AuthorizationHeader: &pb.HttpRequest_OidcToken{
 						OidcToken: &pb.OidcToken{
 							ServiceAccountEmail: serviceAccountEmail,
-							Audience:            audience,
+							Audience:            fmt.Sprintf("https://%s-%s-ew.a.run.app/", os.Getenv("K_SERVICE"), queue.runProjectHash),
+						},
+					},
+				},
+			},
+		},
+	}
+	var lastErr error
+	for i := 0; i < 3 && ctx.Err() == nil; i++ {
+		if err := createTask(ctx, req); err != nil {
+			lastErr = fmt.Errorf("%w: %w", ErrCannotSendTask, err)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		break
+	}
+	if lastErr != nil {
+		return lastErr
+	}
+
+	return nil
+}
+
+func (queue *gcloudQueue) SendExternal(ctx context.Context, task *ExternalTask) error {
+	initOnce.Do(func() {
+		initErr = initGlobals(ctx)
+	})
+	if initErr != nil {
+		return initErr
+	}
+
+	u, err := url.Parse(task.URL)
+	if err != nil {
+		return fmt.Errorf("cloudtasks: cannot parse external task URL: %w", err)
+	}
+	payload, err := json.Marshal(task.Payload)
+	if err != nil {
+		return fmt.Errorf("cloudtasks: cannot marshal task payload %T: %w", payload, err)
+	}
+
+	region := queue.region
+	if region == "" {
+		region = googleRegion
+	}
+	req := &pb.CreateTaskRequest{
+		Parent: strings.Join([]string{"projects", googleProject, "locations", region, "queues", queue.name}, "/"),
+		Task: &pb.Task{
+			MessageType: &pb.Task_HttpRequest{
+				HttpRequest: &pb.HttpRequest{
+					HttpMethod: pb.HttpMethod_POST,
+					Url:        task.URL,
+					Body:       payload,
+					Headers: map[string]string{
+						"Content-Type": "application/json",
+					},
+					AuthorizationHeader: &pb.HttpRequest_OidcToken{
+						OidcToken: &pb.OidcToken{
+							ServiceAccountEmail: serviceAccountEmail,
+							Audience:            fmt.Sprintf("https://%s/", u.Hostname()),
 						},
 					},
 				},

@@ -39,3 +39,8 @@ func WithName(name string) TaskOption {
 		task.name = name
 	}
 }
+
+type ExternalTask struct {
+	URL     string
+	Payload any
+}

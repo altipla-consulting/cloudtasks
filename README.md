@@ -96,6 +96,27 @@ func FooHandler(...) {
 Tasks can accept any JSON-serializable data as arguments, excluding structs with private fields or methods. This flexibility allows for various data types, including basic types like numbers and strings, or more complex structures needed for task execution.
 
 
+### External task invocation
+
+Invoke tasks of external applications with our helper that has retry and authorization built-in:
+
+```go
+func FooHandler(...) {
+  // ... other code
+
+  task := &cloudtasks.ExternalTask{
+    URL: "https://foo-service-9omj3qcv6b-ew.a.run.app/myurl",
+    Payload: arg,
+  }
+  if err := models.QueueFoo.SendExternal(r.Context(), task); err != nil {
+    return errors.Trace(err)
+  }
+
+  // ... other code
+}
+```
+
+
 ## Contributing
 
 You can make pull requests or create issues in GitHub. Any code you send should be formatted using `make gofmt`.

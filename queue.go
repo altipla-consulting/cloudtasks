@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -285,8 +286,7 @@ func extractBearer(authorization string) string {
 	return parts[1]
 }
 
-type localQueue struct {
-}
+type localQueue struct{}
 
 func (queue *localQueue) Send(ctx context.Context, task *Task) error {
 	if err := funcs[task.key].h(ctx, task); err != nil {
@@ -296,5 +296,6 @@ func (queue *localQueue) Send(ctx context.Context, task *Task) error {
 }
 
 func (queue *localQueue) SendExternal(ctx context.Context, task *ExternalTask) error {
-	return fmt.Errorf("cloudtasks: cannot send external tasks in local mode")
+	slog.DebugContext(ctx, "simulated external cloud task", "task", task)
+	return nil
 }

@@ -10,8 +10,8 @@ cloud.google.com/go/iam v1.1.5/go.mod h1:rB6P/Ic3mykPbFio+vo7403drjlgvoWfYpJhMXE
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/altipla-consulting/errors v1.3.0 h1:2R25K0Kv2Xk9ah7OsgZnqy4zTThap+vXy5bHljuvuyw=
 github.com/altipla-consulting/errors v1.3.0/go.mod h1:erkrdXdprO2uXG/78YLr1ClQ0I88atRGJLRl480gpQ8=
-github.com/altipla-consulting/telemetry v0.1.0 h1:/eqePxTH/N1FhVIhfLCGgaMUsWbHfIRAR5jTaUZVvJQ=
-github.com/altipla-consulting/telemetry v0.1.0/go.mod h1:FFzZcoKxNwjv03bN/NktLaWWBcG42sQ/VC6IF9FG/oI=
+github.com/altipla-consulting/telemetry v0.2.2 h1:UsnXnRUeXqdUG4IPxMlDLsEQX3m4gBrQIu+i63LOFqY=
+github.com/altipla-consulting/telemetry v0.2.2/go.mod h1:ZVFidjxvYBqevHRoUUGUBbwsC71Vj1PoZEYPH6QbCa0=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=

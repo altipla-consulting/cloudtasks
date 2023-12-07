@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/cloudtasks v1.12.4
 	cloud.google.com/go/compute/metadata v0.2.3
 	github.com/altipla-consulting/errors v1.3.0
-	github.com/altipla-consulting/telemetry v0.1.0
+	github.com/altipla-consulting/telemetry v0.2.2
 	google.golang.org/api v0.152.0
 )
 

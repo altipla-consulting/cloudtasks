@@ -17,19 +17,15 @@ go get github.com/altipla-consulting/cloudtasks
 
 ### Declare queues
 
-To set up the queue system with its corresponding models and APIs, you'll need to instantiate a [doris](github.com/altipla-consulting/doris).Server in your application's main function. Any other server that can register the handler will do too.
+To set up the queue system with its corresponding models and APIs, you'll need to call the code from your application's main function:
 
 ```go
 func main() {
-  s := doris.NewServer()
-
-  if err := models.ConnectQueues(s); err != nil {
+  if err := models.ConnectQueues(); err != nil {
     log.Fatal(err)
   }
 
   ...
-
-  s.Serve()
 }
 ```
 
@@ -46,6 +42,9 @@ func ConnectQueues(s *doris.Server) error {
   // For example if you have URLs like "https://foo-service-9omj3qcv6b-ew.a.run.app/" the hash will be "9omj3qcv6b".
   QueueFoo = cloudtasks.NewQueue(s, "PROJECT_HASH", "foo")
   QueueBar = cloudtasks.NewQueue(s, "PROJECT_HASH", "bar")
+
+  // It could also come from a global setting constant.
+  QueueGlobal = cloudtasks.NewQueue(s, config.ProjectHash, "global")
 
   return nil
 }
@@ -101,7 +100,7 @@ Tasks can accept any JSON-serializable data as arguments, excluding structs with
 Invoke tasks of external applications with our helper that has retry and authorization built-in:
 
 ```go
-func FooHandler(...) {
+func FooHandler(w http.ResponseWriter, r *http.Request) error {
   // ... other code
 
   task := &cloudtasks.ExternalTask{

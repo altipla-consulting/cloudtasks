@@ -18,6 +18,8 @@ import (
 	cloudtasks "cloud.google.com/go/cloudtasks/apiv2"
 	pb "cloud.google.com/go/cloudtasks/apiv2/cloudtaskspb"
 	"cloud.google.com/go/compute/metadata"
+	"github.com/altipla-consulting/errors"
+	"github.com/altipla-consulting/telemetry"
 	"google.golang.org/api/idtoken"
 )
 
@@ -38,18 +40,13 @@ type Queue interface {
 	SendExternal(ctx context.Context, task *ExternalTask) error
 }
 
-type router interface {
-	Post(string, func(http.ResponseWriter, *http.Request) error)
-}
-
 // QueueOption configures queues when creating them.
 type QueueOption func(*gcloudQueue)
 
 // NewQueue initializes a new queue. It needs:
-// - Some kind of router like github.com/altipla-consulting/doris
 // - The Cloud Run project hash. For example if you have URLs like "https://foo-service-9omj3qcv6b-ew.a.run.app/" the hash will be "9omj3qcv6b".
 // - The queue name.
-func NewQueue(r router, runProjectHash string, name string, opts ...QueueOption) Queue {
+func NewQueue(runProjectHash string, name string, opts ...QueueOption) Queue {
 	if runProjectHash == "" {
 		panic("cloudtasks: runProjectHash cannot be empty")
 	}
@@ -62,7 +59,7 @@ func NewQueue(r router, runProjectHash string, name string, opts ...QueueOption)
 		name:           name,
 		runProjectHash: runProjectHash,
 	}
-	r.Post("/_cloudtasks/"+name, queue.taskHandler)
+	http.Handle("/_cloudtasks/"+name, http.HandlerFunc(queue.taskHandler))
 	return queue
 }
 
@@ -222,18 +219,20 @@ func createTask(ctx context.Context, req *pb.CreateTaskRequest) error {
 	return err
 }
 
-func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) error {
+func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) {
 	initOnce.Do(func() {
 		initErr = initGlobals(r.Context())
 	})
 	if initErr != nil {
-		return initErr
+		slog.Error("cloudtasks: failed to initialize globals", "err", errors.LogValue(initErr))
+		telemetry.ReportError(r.Context(), initErr)
+		return
 	}
 
 	bearer := extractBearer(r.Header.Get("Authorization"))
 	if bearer == "" {
 		http.Error(w, fmt.Sprintf("cloudtasks: bad token format: %q", r.Header.Get("Authorization")), http.StatusUnauthorized)
-		return nil
+		return
 	}
 	region := queue.region
 	if region == "" {
@@ -243,27 +242,31 @@ func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) er
 	jwt, err := idtoken.Validate(r.Context(), bearer, audience)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: %s", bearer, err), http.StatusUnauthorized)
-		return nil
+		return
 	}
 	email, _ := jwt.Claims["email"].(string)
 	if email != serviceAccountEmail {
 		http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: invalid email %q", bearer, email), http.StatusUnauthorized)
-		return nil
+		return
 	}
 
 	key := r.Header.Get("X-Altipla-Task")
 	if key == "" {
 		http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: missing task key", bearer), http.StatusUnauthorized)
-		return nil
+		return
 	}
 
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
-		return fmt.Errorf("cloudtasks: cannot read task payload: %w", err)
+		slog.Error("cloudtasks: cannot read task payload", "err", errors.LogValue(err))
+		telemetry.ReportErrorRequest(r, err)
+		return
 	}
 	retries, err := strconv.ParseInt(r.Header.Get("X-CloudTasks-TaskRetryCount"), 10, 64)
 	if err != nil {
-		return fmt.Errorf("cloudtasks: cannot parse task retry count: %w", err)
+		slog.Error("cloudtasks: cannot parse task retry count", "err", errors.LogValue(err))
+		telemetry.ReportErrorRequest(r, err)
+		return
 	}
 	task := &Task{
 		key:     key,
@@ -272,10 +275,12 @@ func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) er
 		Retries: retries,
 	}
 	if err := funcs[key].h(r.Context(), task); err != nil {
-		return fmt.Errorf("cloudtasks: cannot execute task %q: %w", key, err)
+		slog.Error("cloudtasks: cannot execute task",
+			"err", errors.LogValue(err),
+			"task", task)
+		telemetry.ReportErrorRequest(r, err)
+		return
 	}
-
-	return nil
 }
 
 func extractBearer(authorization string) string {
@@ -296,6 +301,6 @@ func (queue *localQueue) Send(ctx context.Context, task *Task) error {
 }
 
 func (queue *localQueue) SendExternal(ctx context.Context, task *ExternalTask) error {
-	slog.DebugContext(ctx, "simulated external cloud task", "task", task)
+	slog.DebugContext(ctx, "cloudtasks: simulated external task", "task", task)
 	return nil
 }

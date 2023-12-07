@@ -29,6 +29,18 @@ func (task *Task) Read(dest interface{}) error {
 	return nil
 }
 
+// LogValue implements slog.LogValuer.
+func (task *Task) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("name", task.name),
+		slog.String("key", task.key),
+		slog.String("payload", string(task.payload)),
+		slog.Int64("retries", task.Retries),
+	)
+}
+
+var _ slog.LogValuer = new(Task)
+
 // TaskOption configures tasks when creating them.
 type TaskOption func(task *Task)
 
@@ -49,7 +61,7 @@ type ExternalTask struct {
 
 var _ slog.LogValuer = new(ExternalTask)
 
-// LogValue implements logging for the whole task.
+// LogValue implements slog.LogValuer.
 func (task *ExternalTask) LogValue() slog.Value {
 	payload, err := json.Marshal(task.Payload)
 	if err != nil {

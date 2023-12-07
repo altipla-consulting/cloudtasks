@@ -32,6 +32,9 @@ var (
 type Queue interface {
 	// Send a new task to the queue.
 	Send(ctx context.Context, task *Task) error
+
+	// SendExternal sends a new task to an external URL.
+	SendExternal(ctx context.Context, task *ExternalTask) error
 }
 
 type router interface {
@@ -290,4 +293,8 @@ func (queue *localQueue) Send(ctx context.Context, task *Task) error {
 		return fmt.Errorf("cloudtasks: cannot execute task %q: %w", task.key, err)
 	}
 	return nil
+}
+
+func (queue *localQueue) SendExternal(ctx context.Context, task *ExternalTask) error {
+	return fmt.Errorf("cloudtasks: cannot send external tasks in local mode")
 }

@@ -3,6 +3,7 @@ package cloudtasks
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 )
 
 // Task is a task sent or receieved from a queue.
@@ -40,7 +41,19 @@ func WithName(name string) TaskOption {
 	}
 }
 
+// ExternalTask should be filled with the data of the task to call in an external Cloud Run application.
 type ExternalTask struct {
 	URL     string
 	Payload any
+}
+
+var _ slog.LogValuer = new(ExternalTask)
+
+// LogValue implements logging for the whole task.
+func (task *ExternalTask) LogValue() slog.Value {
+	payload, err := json.Marshal(task.Payload)
+	if err != nil {
+		return slog.GroupValue(slog.String("url", task.URL), slog.String("payload-err", err.Error()))
+	}
+	return slog.GroupValue(slog.String("url", task.URL), slog.String("payload", string(payload)))
 }

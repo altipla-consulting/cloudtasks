@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -32,6 +33,9 @@ var (
 type Queue interface {
 	// Send a new task to the queue.
 	Send(ctx context.Context, task *Task) error
+
+	// SendExternal sends a new task to an external URL.
+	SendExternal(ctx context.Context, task *ExternalTask) error
 }
 
 type router interface {
@@ -282,12 +286,16 @@ func extractBearer(authorization string) string {
 	return parts[1]
 }
 
-type localQueue struct {
-}
+type localQueue struct{}
 
 func (queue *localQueue) Send(ctx context.Context, task *Task) error {
 	if err := funcs[task.key].h(ctx, task); err != nil {
 		return fmt.Errorf("cloudtasks: cannot execute task %q: %w", task.key, err)
 	}
+	return nil
+}
+
+func (queue *localQueue) SendExternal(ctx context.Context, task *ExternalTask) error {
+	slog.DebugContext(ctx, "simulated external cloud task", "task", task)
 	return nil
 }

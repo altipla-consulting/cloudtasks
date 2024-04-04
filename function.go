@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"runtime"
+	"testing"
 )
 
 var (
@@ -94,4 +96,29 @@ func (f *Function) CallTask(ctx context.Context, queue Queue, payload interface{
 		return nil, err
 	}
 	return task, queue.Send(ctx, task)
+}
+
+// TestCall makes a direct call to the handler with the payload as incoming payload.
+// It requires a testing argument to be sure it is only used in tests.
+func (f *Function) TestCall(t *testing.T, payload interface{}) error {
+	send, err := f.Task(payload)
+	if err != nil {
+		return err
+	}
+
+	task := &Task{
+		key:     f.key,
+		name:    generateRandomString(10),
+		payload: send.payload,
+	}
+	return f.h(context.Background(), task)
+}
+
+func generateRandomString(n int) string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }

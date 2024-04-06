@@ -294,9 +294,13 @@ func extractBearer(authorization string) string {
 type localQueue struct{}
 
 func (queue *localQueue) Send(ctx context.Context, task *Task) error {
-	if err := funcs[task.key].h(ctx, task); err != nil {
-		return fmt.Errorf("cloudtasks: cannot execute task %q: %w", task.key, err)
-	}
+	go func() {
+		if err := funcs[task.key].h(context.Background(), task); err != nil {
+			slog.Error("cloudtasks: cannot execute task",
+				slog.String("err", err.Error()),
+				slog.String("task", task.key))
+		}
+	}()
 	return nil
 }
 

@@ -281,6 +281,7 @@ func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) {
 			"err", errors.LogValue(err),
 			"task", task)
 		telemetry.ReportErrorRequest(r, err)
+		http.Error(w, "handler failed", http.StatusInternalServerError)
 		return
 	}
 }

@@ -88,7 +88,7 @@ func initGlobals(ctx context.Context) error {
 		return fmt.Errorf("cloudtasks: cannot get google project name: %w", err)
 	}
 
-	googleRegion, err = metadata.Get("region")
+	googleRegion, err = metadata.Get("instance/region")
 	if err != nil {
 		return fmt.Errorf("cloudtasks: cannot get google project region: %w", err)
 	}

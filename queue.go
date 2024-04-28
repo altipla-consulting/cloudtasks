@@ -55,12 +55,10 @@ func NewQueue(runProjectHash string, name string, opts ...QueueOption) Queue {
 		return new(localQueue)
 	}
 
-	queue := &gcloudQueue{
+	return &gcloudQueue{
 		name:           name,
 		runProjectHash: runProjectHash,
 	}
-	http.Handle("/_cloudtasks/"+name, http.HandlerFunc(queue.taskHandler))
-	return queue
 }
 
 // WithRegion configures a custom region for the queue. By default it will use the region of the Cloud Run service.
@@ -281,6 +279,10 @@ func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) {
 		telemetry.ReportErrorRequest(r, err)
 		return
 	}
+}
+
+func (queue *gcloudQueue) Handler() (string, http.Handler) {
+	return "/_cloudtasks/" + queue.name, http.HandlerFunc(queue.taskHandler)
 }
 
 func extractBearer(authorization string) string {

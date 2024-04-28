@@ -46,6 +46,11 @@ func ConnectQueues() error {
   // It could also come from a global setting constant.
   QueueGlobal = cloudtasks.NewQueue(config.ProjectHash, "global")
 
+  // Register the queue handlers.
+  http.Handle(QueueFoo.Handler())
+  http.Handle(QueueBar.Handler())
+  http.Handle(QueueGlobal.Handler())
+
   return nil
 }
 ```

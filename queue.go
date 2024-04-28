@@ -29,6 +29,8 @@ var (
 	client                      *cloudtasks.Client
 	googleProject, googleRegion string
 	serviceAccountEmail         string
+
+	queues []*gcloudQueue
 )
 
 // Queue abstract any remote or local system that can execute a task.
@@ -55,10 +57,12 @@ func NewQueue(runProjectHash string, name string, opts ...QueueOption) Queue {
 		return new(localQueue)
 	}
 
-	return &gcloudQueue{
+	queue := &gcloudQueue{
 		name:           name,
 		runProjectHash: runProjectHash,
 	}
+	queues = append(queues, queue)
+	return queue
 }
 
 // WithRegion configures a custom region for the queue. By default it will use the region of the Cloud Run service.
@@ -272,17 +276,13 @@ func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) {
 		payload: payload,
 		Retries: retries,
 	}
-	if err := funcs[key].h(r.Context(), task); err != nil {
+	if err := funcs[key].fn(r.Context(), task); err != nil {
 		slog.Error("cloudtasks: cannot execute task",
 			"err", errors.LogValue(err),
 			"task", task)
 		telemetry.ReportErrorRequest(r, err)
 		return
 	}
-}
-
-func (queue *gcloudQueue) Handler() (string, http.Handler) {
-	return "/_cloudtasks/" + queue.name, http.HandlerFunc(queue.taskHandler)
 }
 
 func extractBearer(authorization string) string {
@@ -297,7 +297,7 @@ type localQueue struct{}
 
 func (queue *localQueue) Send(ctx context.Context, task *Task) error {
 	go func() {
-		if err := funcs[task.key].h(context.Background(), task); err != nil {
+		if err := funcs[task.key].fn(context.Background(), task); err != nil {
 			slog.Error("cloudtasks: cannot execute task",
 				slog.String("err", err.Error()),
 				slog.String("task", task.key))

@@ -17,7 +17,7 @@ go get github.com/altipla-consulting/cloudtasks
 
 ### Declare queues
 
-To set up the queue system with its corresponding models and APIs, you'll need to call the code from your application's main function:
+To set up the queue system with its corresponding models and APIs, you'll need to call the code declaring the queues from your application's main function and then register the HTTP handler:
 
 ```go
 func main() {
@@ -25,7 +25,8 @@ func main() {
     log.Fatal(err)
   }
 
-  ...
+  // Register the queue handlers.
+  http.Handle(cloudtasks.Handler())
 }
 ```
 
@@ -45,11 +46,6 @@ func ConnectQueues() error {
 
   // It could also come from a global setting constant.
   QueueGlobal = cloudtasks.NewQueue(config.ProjectHash, "global")
-
-  // Register the queue handlers.
-  http.Handle(QueueFoo.Handler())
-  http.Handle(QueueBar.Handler())
-  http.Handle(QueueGlobal.Handler())
 
   return nil
 }

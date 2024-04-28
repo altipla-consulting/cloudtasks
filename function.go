@@ -19,21 +19,21 @@ var (
 	errorType   = reflect.TypeOf((*error)(nil)).Elem()
 )
 
-// Handler should be implemented by any task function.
-type Handler func(ctx context.Context, task *Task) error
+// TaskFn should be implemented by any task function.
+type TaskFn func(ctx context.Context, task *Task) error
 
 // Function is a stored task implementation.
 type Function struct {
 	key string
-	h   Handler
+	fn  TaskFn
 	err error
 }
 
 // Func builds and registers a new task implementation.
-func Func(key string, h Handler) *Function {
+func Func(key string, fn TaskFn) *Function {
 	f := &Function{
 		key: key,
-		h:   h,
+		fn:  fn,
 	}
 
 	if old := funcs[f.key]; old != nil {
@@ -111,7 +111,7 @@ func (f *Function) TestCall(t *testing.T, payload interface{}) error {
 		name:    generateRandomString(10),
 		payload: send.payload,
 	}
-	return f.h(context.Background(), task)
+	return f.fn(context.Background(), task)
 }
 
 func generateRandomString(n int) string {

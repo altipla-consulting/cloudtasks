@@ -90,11 +90,21 @@ func initGlobals(ctx context.Context) error {
 		return fmt.Errorf("cloudtasks: cannot get google project name: %w", err)
 	}
 
-	googleRegion, err = metadata.Get("instance/region")
-	if err != nil {
-		return fmt.Errorf("cloudtasks: cannot get google project region: %w", err)
+	if os.Getenv("K_CONFIGURATION") != "" || os.Getenv("CLOUD_RUN_JOB") != "" {
+		// Google Cloud Run.
+		region, err := metadata.Get("instance/region")
+		if err != nil {
+			return fmt.Errorf("cloudtasks: cannot get google project region: %w", err)
+		}
+		googleRegion = path.Base(region)
+	} else {
+		// Google Compute Engine.
+		zone, err := metadata.Zone()
+		if err != nil {
+			return fmt.Errorf("cloudtasks: cannot get google zone: %w", err)
+		}
+		googleRegion = zone[:strings.LastIndex(zone, "-")]
 	}
-	googleRegion = path.Base(googleRegion)
 
 	serviceAccountEmail, err = metadata.Email("default")
 	if err != nil {

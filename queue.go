@@ -48,7 +48,7 @@ type QueueOption func(*gcloudQueue)
 // NewQueue initializes a new queue.
 func NewQueue(name string, opts ...QueueOption) Queue {
 	if os.Getenv("K_SERVICE") == "" {
-		return new(localQueue)
+		return &localQueue{name: name}
 	}
 
 	queue := &gcloudQueue{name: name}
@@ -272,6 +272,13 @@ func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) er
 		return errors.Trace(err)
 	}
 
+	slog.Info("cloudtasks: task completed",
+		slog.String("task", task.name),
+		slog.String("queue", queue.name),
+		slog.String("function", key),
+		slog.Int64("retries", task.Retries),
+	)
+
 	return nil
 }
 
@@ -283,16 +290,28 @@ func extractBearer(authorization string) string {
 	return parts[1]
 }
 
-type localQueue struct{}
+type localQueue struct {
+	name string
+}
 
 func (queue *localQueue) Send(ctx context.Context, task *Task) error {
 	go func() {
 		if err := funcs[task.key].fn(context.Background(), task); err != nil {
-			slog.Error("cloudtasks: cannot execute task",
+			slog.Error("cloudtasks: failed to execute simulated task",
 				slog.String("err", err.Error()),
-				slog.String("task", task.key))
+				slog.String("task", task.key),
+			)
+			fmt.Println(errors.Stack(err))
+			return
 		}
+
+		slog.Info("cloudtasks: task simulation completed",
+			slog.String("task", task.name),
+			slog.String("queue", queue.name),
+			slog.String("function", task.key),
+		)
 	}()
+
 	return nil
 }
 

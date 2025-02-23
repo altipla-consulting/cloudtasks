@@ -111,6 +111,12 @@ func FooHandler(w http.ResponseWriter, r *http.Request) error {
 }
 ```
 
+## Upgrades
+
+### v0 -> v1
+
+`cloudtasks.NewQueue()` now needs one less parameter. The first parameter with the Cloud Run URL is now deterministically guessed from the environment and can be completely removed.
+
 
 ## Contributing
 

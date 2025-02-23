@@ -19,7 +19,6 @@ import (
 	pb "cloud.google.com/go/cloudtasks/apiv2/cloudtaskspb"
 	"cloud.google.com/go/compute/metadata"
 	"github.com/altipla-consulting/errors"
-	"github.com/altipla-consulting/telemetry"
 	"google.golang.org/api/idtoken"
 )
 
@@ -28,9 +27,10 @@ var (
 	initErr                     error
 	client                      *cloudtasks.Client
 	googleProject, googleRegion string
+	googleNumericProject        string
 	serviceAccountEmail         string
 
-	queues []*gcloudQueue
+	allQueues []*gcloudQueue
 )
 
 // Queue abstract any remote or local system that can execute a task.
@@ -45,23 +45,14 @@ type Queue interface {
 // QueueOption configures queues when creating them.
 type QueueOption func(*gcloudQueue)
 
-// NewQueue initializes a new queue. It needs:
-// - The Cloud Run project hash. For example if you have URLs like "https://foo-service-9omj3qcv6b-ew.a.run.app/" the hash will be "9omj3qcv6b".
-// - The queue name.
-func NewQueue(runProjectHash string, name string, opts ...QueueOption) Queue {
-	if runProjectHash == "" {
-		panic("cloudtasks: runProjectHash cannot be empty")
-	}
-
+// NewQueue initializes a new queue.
+func NewQueue(name string, opts ...QueueOption) Queue {
 	if os.Getenv("K_SERVICE") == "" {
 		return new(localQueue)
 	}
 
-	queue := &gcloudQueue{
-		name:           name,
-		runProjectHash: runProjectHash,
-	}
-	queues = append(queues, queue)
+	queue := &gcloudQueue{name: name}
+	allQueues = append(allQueues, queue)
 	return queue
 }
 
@@ -73,9 +64,8 @@ func WithRegion(region string) QueueOption {
 }
 
 type gcloudQueue struct {
-	name           string
-	region         string
-	runProjectHash string
+	name   string
+	region string
 }
 
 func initGlobals(ctx context.Context) error {
@@ -89,22 +79,15 @@ func initGlobals(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("cloudtasks: cannot get google project name: %w", err)
 	}
-
-	if os.Getenv("K_CONFIGURATION") != "" || os.Getenv("CLOUD_RUN_JOB") != "" {
-		// Google Cloud Run.
-		region, err := metadata.Get("instance/region")
-		if err != nil {
-			return fmt.Errorf("cloudtasks: cannot get google project region: %w", err)
-		}
-		googleRegion = path.Base(region)
-	} else {
-		// Google Compute Engine.
-		zone, err := metadata.Zone()
-		if err != nil {
-			return fmt.Errorf("cloudtasks: cannot get google zone: %w", err)
-		}
-		googleRegion = zone[:strings.LastIndex(zone, "-")]
+	googleNumericProject, err = metadata.NumericProjectID()
+	if err != nil {
+		return fmt.Errorf("cloudtasks: cannot get google numeric project: %w", err)
 	}
+	region, err := metadata.Get("instance/region")
+	if err != nil {
+		return fmt.Errorf("cloudtasks: cannot get google project region: %w", err)
+	}
+	googleRegion = path.Base(region)
 
 	serviceAccountEmail, err = metadata.Email("default")
 	if err != nil {
@@ -132,7 +115,7 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 			MessageType: &pb.Task_HttpRequest{
 				HttpRequest: &pb.HttpRequest{
 					HttpMethod: pb.HttpMethod_POST,
-					Url:        fmt.Sprintf("https://%s-%s-ew.a.run.app/_cloudtasks/%s", os.Getenv("K_SERVICE"), queue.runProjectHash, queue.name),
+					Url:        fmt.Sprintf("https://%s-%s.%s.run.app/_cloudtasks/%s", os.Getenv("K_SERVICE"), googleNumericProject, googleRegion, queue.name),
 					Body:       task.payload,
 					Headers: map[string]string{
 						"Content-Type":   "application/json",
@@ -141,7 +124,7 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 					AuthorizationHeader: &pb.HttpRequest_OidcToken{
 						OidcToken: &pb.OidcToken{
 							ServiceAccountEmail: serviceAccountEmail,
-							Audience:            fmt.Sprintf("https://%s-%s-ew.a.run.app/", os.Getenv("K_SERVICE"), queue.runProjectHash),
+							Audience:            fmt.Sprintf("https://%s-%s.%s.run.app/", os.Getenv("K_SERVICE"), googleNumericProject, googleRegion),
 						},
 					},
 				},
@@ -231,54 +214,46 @@ func createTask(ctx context.Context, req *pb.CreateTaskRequest) error {
 	return err
 }
 
-func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) {
+func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) error {
 	initOnce.Do(func() {
 		initErr = initGlobals(r.Context())
 	})
 	if initErr != nil {
-		slog.Error("cloudtasks: failed to initialize globals", "err", errors.LogValue(initErr))
-		telemetry.ReportError(r.Context(), initErr)
-		return
+		return errors.Errorf("cloudtasks: failed to initialize globals: %w", initErr)
 	}
 
 	bearer := extractBearer(r.Header.Get("Authorization"))
 	if bearer == "" {
-		http.Error(w, fmt.Sprintf("cloudtasks: bad token format: %q", r.Header.Get("Authorization")), http.StatusUnauthorized)
-		return
+		http.Error(w, fmt.Sprintf("cloudtasks: bad token format %q", r.Header.Get("Authorization")), http.StatusUnauthorized)
+		return nil
 	}
 	region := queue.region
 	if region == "" {
 		region = googleRegion
 	}
-	audience := fmt.Sprintf("https://%s-%s-%s.a.run.app/", os.Getenv("K_SERVICE"), queue.runProjectHash, regionCode(region))
+	audience := fmt.Sprintf("https://%s-%s.%s.run.app/", os.Getenv("K_SERVICE"), googleNumericProject, region)
 	jwt, err := idtoken.Validate(r.Context(), bearer, audience)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: %s", bearer, err), http.StatusUnauthorized)
-		return
+		return nil
 	}
 	email, _ := jwt.Claims["email"].(string)
 	if email != serviceAccountEmail {
-		http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: invalid email %q", bearer, email), http.StatusUnauthorized)
-		return
+		return errors.Errorf("cloudtasks: unexpected email %q in token %q", email, bearer)
 	}
 
 	key := r.Header.Get("X-Altipla-Task")
 	if key == "" {
-		http.Error(w, fmt.Sprintf("cloudtasks: bad token %q: missing task key", bearer), http.StatusUnauthorized)
-		return
+		return errors.Errorf("cloudtasks: missing task key")
 	}
 
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
-		slog.Error("cloudtasks: cannot read task payload", "err", errors.LogValue(err))
-		telemetry.ReportErrorRequest(r, err)
-		return
+		return errors.Trace(err)
 	}
 	retries, err := strconv.ParseInt(r.Header.Get("X-CloudTasks-TaskRetryCount"), 10, 64)
 	if err != nil {
-		slog.Error("cloudtasks: cannot parse task retry count", "err", errors.LogValue(err))
-		telemetry.ReportErrorRequest(r, err)
-		return
+		return errors.Trace(err)
 	}
 	task := &Task{
 		key:     key,
@@ -286,14 +261,18 @@ func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) {
 		payload: payload,
 		Retries: retries,
 	}
-	if err := funcs[key].fn(r.Context(), task); err != nil {
-		slog.Error("cloudtasks: cannot execute task",
-			"err", errors.LogValue(err),
-			"task", task)
-		telemetry.ReportErrorRequest(r, err)
-		http.Error(w, "handler failed", http.StatusInternalServerError)
-		return
+	if err := safeCall(r.Context(), key, task); err != nil {
+		slog.Error("cloudtasks: task failed",
+			slog.String("task", task.key),
+			slog.String("queue", queue.name),
+			slog.String("error", err.Error()),
+			slog.String("details", errors.Details(err)),
+			slog.Int64("retries", task.Retries),
+		)
+		return errors.Trace(err)
 	}
+
+	return nil
 }
 
 func extractBearer(authorization string) string {
@@ -320,4 +299,13 @@ func (queue *localQueue) Send(ctx context.Context, task *Task) error {
 func (queue *localQueue) SendExternal(ctx context.Context, task *ExternalTask) error {
 	slog.DebugContext(ctx, "cloudtasks: simulated external task", "task", task)
 	return nil
+}
+
+func safeCall(ctx context.Context, key string, task *Task) (err error) {
+	defer func() {
+		if r := errors.Recover(recover()); r != nil {
+			err = r
+		}
+	}()
+	return funcs[key].fn(ctx, task)
 }

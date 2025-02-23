@@ -39,13 +39,8 @@ var (
 )
 
 func ConnectQueues() error {
-  // PROJECT_HASH should be replaced by your Cloud Run project hash.
-  // For example if you have URLs like "https://foo-service-9omj3qcv6b-ew.a.run.app/" the hash will be "9omj3qcv6b".
-  QueueFoo = cloudtasks.NewQueue("PROJECT_HASH", "foo")
-  QueueBar = cloudtasks.NewQueue("PROJECT_HASH", "bar")
-
-  // It could also come from a global setting constant.
-  QueueGlobal = cloudtasks.NewQueue(config.ProjectHash, "global")
+  QueueFoo = cloudtasks.NewQueue("foo")
+  QueueBar = cloudtasks.NewQueue("bar")
 
   return nil
 }

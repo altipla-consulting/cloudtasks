@@ -75,21 +75,21 @@ func initGlobals(ctx context.Context) error {
 		return fmt.Errorf("cloudtasks: cannot initialize remote client: %w", err)
 	}
 
-	googleProject, err = metadata.ProjectID()
+	googleProject, err = metadata.ProjectIDWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("cloudtasks: cannot get google project name: %w", err)
 	}
-	googleNumericProject, err = metadata.NumericProjectID()
+	googleNumericProject, err = metadata.NumericProjectIDWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("cloudtasks: cannot get google numeric project: %w", err)
 	}
-	region, err := metadata.Get("instance/region")
+	region, err := metadata.GetWithContext(ctx, "instance/region")
 	if err != nil {
 		return fmt.Errorf("cloudtasks: cannot get google project region: %w", err)
 	}
 	googleRegion = path.Base(region)
 
-	serviceAccountEmail, err = metadata.Email("default")
+	serviceAccountEmail, err = metadata.EmailWithContext(ctx, "default")
 	if err != nil {
 		return fmt.Errorf("cloudtasks: cannot get default service account email: %w", err)
 	}

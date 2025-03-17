@@ -45,9 +45,9 @@ func WithRegion(region string) QueueOption {
 	}
 }
 
-// WithCustomHostname configures the queue for an application outside of Cloud Run. Pass only the hostname, without the
+// WithHostname configures the queue for an application outside of Cloud Run. Pass only the hostname, without the
 // protocol or trailing slash.
-func WithCustomHostname(hostname string) QueueOption {
+func WithHostname(hostname string) QueueOption {
 	return func(queue *gcloudQueue) {
 		queue.audience = fmt.Sprintf("https://%s", hostname)
 	}

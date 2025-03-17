@@ -7,6 +7,7 @@ toolchain go1.24.0
 require (
 	cloud.google.com/go/cloudtasks v1.13.3
 	cloud.google.com/go/compute/metadata v0.6.0
+	github.com/VictoriaMetrics/metrics v1.35.2
 	github.com/altipla-consulting/doris v0.13.5
 	github.com/altipla-consulting/errors v1.5.1
 	google.golang.org/api v0.222.0
@@ -17,7 +18,6 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.7 // indirect
 	cloud.google.com/go/iam v1.4.0 // indirect
 	connectrpc.com/connect v1.18.1 // indirect
-	github.com/VictoriaMetrics/metrics v1.35.2 // indirect
 	github.com/altipla-consulting/env v0.2.2 // indirect
 	github.com/altipla-consulting/sentry v0.6.1 // indirect
 	github.com/altipla-consulting/telemetry v0.8.1 // indirect

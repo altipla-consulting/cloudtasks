@@ -17,6 +17,7 @@ import (
 	cloudtasks "cloud.google.com/go/cloudtasks/apiv2"
 	pb "cloud.google.com/go/cloudtasks/apiv2/cloudtaskspb"
 	"cloud.google.com/go/compute/metadata"
+	"github.com/VictoriaMetrics/metrics"
 	"github.com/altipla-consulting/errors"
 	"google.golang.org/api/idtoken"
 )
@@ -166,6 +167,8 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 		return lastErr
 	}
 
+	metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_sent_total{queue=%q,task=%q}", queue.name, task.key)).Inc()
+
 	return nil
 }
 
@@ -261,6 +264,10 @@ func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) er
 		payload: payload,
 		Retries: retries,
 	}
+
+	metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_received_total{queue=%q,task=%q}", queue.name, task.key)).Inc()
+
+	start := time.Now()
 	if err := safeCall(r.Context(), key, task); err != nil {
 		slog.Error("cloudtasks: task failed",
 			slog.String("task", task.key),
@@ -269,15 +276,18 @@ func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) er
 			slog.String("details", errors.Details(err)),
 			slog.Int64("retries", task.Retries),
 		)
+		metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_failed_total{queue=%q,task=%q}", queue.name, task.key)).Inc()
 		return errors.Trace(err)
 	}
 
-	slog.Info("cloudtasks: task completed",
+	slog.Debug("cloudtasks: task completed",
 		slog.String("task", task.name),
 		slog.String("queue", queue.name),
 		slog.String("function", key),
 		slog.Int64("retries", task.Retries),
 	)
+	metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_success_total{queue=%q,task=%q}", queue.name, task.key)).Inc()
+	metrics.GetOrCreateHistogram(fmt.Sprintf("cloudtasks_duration_seconds{queue=%q,task=%q}", queue.name, task.key)).UpdateDuration(start)
 
 	return nil
 }
@@ -288,6 +298,15 @@ func extractBearer(authorization string) string {
 		return ""
 	}
 	return parts[1]
+}
+
+func safeCall(ctx context.Context, key string, task *Task) (err error) {
+	defer func() {
+		if r := errors.Recover(recover()); r != nil {
+			err = r
+		}
+	}()
+	return funcs[key].fn(ctx, task)
 }
 
 type localQueue struct {
@@ -318,13 +337,4 @@ func (queue *localQueue) Send(ctx context.Context, task *Task) error {
 func (queue *localQueue) SendExternal(ctx context.Context, task *ExternalTask) error {
 	slog.DebugContext(ctx, "cloudtasks: simulated external task", "task", task)
 	return nil
-}
-
-func safeCall(ctx context.Context, key string, task *Task) (err error) {
-	defer func() {
-		if r := errors.Recover(recover()); r != nil {
-			err = r
-		}
-	}()
-	return funcs[key].fn(ctx, task)
 }

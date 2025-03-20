@@ -154,6 +154,10 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 			},
 		},
 	}
+	if task.name != "" {
+		req.Task.Name = taskName(task.name)
+	}
+
 	var lastErr error
 	for i := 0; i < 3 && ctx.Err() == nil; i++ {
 		if err := queue.createTask(ctx, req); err != nil {
@@ -167,7 +171,7 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 		return lastErr
 	}
 
-	metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_sent_total{queue=%q,task=%q}", queue.name, task.key)).Inc()
+	metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_sent_total{queue=%q,task=%q,name=%q}", queue.name, task.key, task.name)).Inc()
 
 	return nil
 }
@@ -201,6 +205,10 @@ func (queue *gcloudQueue) SendExternal(ctx context.Context, task *ExternalTask) 
 			},
 		},
 	}
+	if task.name != "" {
+		req.Task.Name = taskName(task.name)
+	}
+
 	var lastErr error
 	for i := 0; i < 3 && ctx.Err() == nil; i++ {
 		if err := queue.createTask(ctx, req); err != nil {

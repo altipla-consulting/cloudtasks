@@ -1,6 +1,7 @@
 package cloudtasks
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -57,6 +58,11 @@ func WithName(name string) TaskOption {
 type ExternalTask struct {
 	URL     string
 	Payload any
+	name    string
+}
+
+func (task *ExternalTask) Name() string {
+	return task.name
 }
 
 var _ slog.LogValuer = new(ExternalTask)
@@ -68,4 +74,13 @@ func (task *ExternalTask) LogValue() slog.Value {
 		return slog.GroupValue(slog.String("url", task.URL), slog.String("payload-err", err.Error()))
 	}
 	return slog.GroupValue(slog.String("url", task.URL), slog.String("payload", string(payload)))
+}
+
+// Generate task name with hash.
+func taskName(name string) string {
+	if name != "" {
+		hash := fmt.Sprintf("%x", md5.Sum([]byte(string(name))))[:8]
+		return fmt.Sprintf("%s-%s", name, hash)
+	}
+	return name
 }

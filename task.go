@@ -61,10 +61,6 @@ type ExternalTask struct {
 	name    string
 }
 
-func (task *ExternalTask) Name() string {
-	return task.name
-}
-
 var _ slog.LogValuer = new(ExternalTask)
 
 // LogValue implements slog.LogValuer.
@@ -76,11 +72,11 @@ func (task *ExternalTask) LogValue() slog.Value {
 	return slog.GroupValue(slog.String("url", task.URL), slog.String("payload", string(payload)))
 }
 
-// Generate task name with hash.
-func taskName(name string) string {
+// generateTaskName generates name with hash.
+func generateTaskName(name string) string {
 	if name != "" {
 		hash := fmt.Sprintf("%x", md5.Sum([]byte(string(name))))[:8]
-		return fmt.Sprintf("%s-%s", name, hash)
+		return fmt.Sprintf("%s-%s", hash, name)
 	}
 	return name
 }

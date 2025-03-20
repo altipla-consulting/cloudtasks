@@ -135,6 +135,7 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 	req := &pb.CreateTaskRequest{
 		Parent: strings.Join([]string{"projects", queue.project, "locations", queue.region, "queues", queue.name}, "/"),
 		Task: &pb.Task{
+			Name: generateTaskName(task.name),
 			MessageType: &pb.Task_HttpRequest{
 				HttpRequest: &pb.HttpRequest{
 					HttpMethod: pb.HttpMethod_POST,
@@ -154,10 +155,6 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 			},
 		},
 	}
-	if task.name != "" {
-		req.Task.Name = taskName(task.name)
-	}
-
 	var lastErr error
 	for i := 0; i < 3 && ctx.Err() == nil; i++ {
 		if err := queue.createTask(ctx, req); err != nil {
@@ -171,7 +168,7 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 		return lastErr
 	}
 
-	metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_sent_total{queue=%q,task=%q,name=%q}", queue.name, task.key, task.name)).Inc()
+	metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_sent_total{queue=%q,task=%q}", queue.name, task.key)).Inc()
 
 	return nil
 }
@@ -189,6 +186,7 @@ func (queue *gcloudQueue) SendExternal(ctx context.Context, task *ExternalTask) 
 	req := &pb.CreateTaskRequest{
 		Parent: strings.Join([]string{"projects", queue.project, "locations", queue.region, "queues", queue.name}, "/"),
 		Task: &pb.Task{
+			Name: generateTaskName(task.name),
 			MessageType: &pb.Task_HttpRequest{
 				HttpRequest: &pb.HttpRequest{
 					HttpMethod: pb.HttpMethod_POST,
@@ -205,10 +203,6 @@ func (queue *gcloudQueue) SendExternal(ctx context.Context, task *ExternalTask) 
 			},
 		},
 	}
-	if task.name != "" {
-		req.Task.Name = taskName(task.name)
-	}
-
 	var lastErr error
 	for i := 0; i < 3 && ctx.Err() == nil; i++ {
 		if err := queue.createTask(ctx, req); err != nil {

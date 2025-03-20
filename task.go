@@ -75,8 +75,7 @@ func (task *ExternalTask) LogValue() slog.Value {
 // generateTaskName generates name with hash.
 func generateTaskName(name string) string {
 	if name != "" {
-		hash := fmt.Sprintf("%x", md5.Sum([]byte(string(name))))[:8]
-		return fmt.Sprintf("%s-%s", hash, name)
+		return fmt.Sprintf("%x", md5.Sum([]byte(string(name))))[:8]
 	}
 	return name
 }

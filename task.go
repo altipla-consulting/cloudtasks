@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 )
 
 // Task is a task sent or receieved from a queue.
@@ -73,9 +74,10 @@ func (task *ExternalTask) LogValue() slog.Value {
 }
 
 // generateTaskName generates name with hash.
-func generateTaskName(name string) string {
+func generateTaskName(parent, name string) string {
 	if name != "" {
-		return fmt.Sprintf("%x", md5.Sum([]byte(string(name))))[:8]
+		hash := fmt.Sprintf("%x", md5.Sum([]byte(string(name))))[:8]
+		return strings.Join([]string{parent, "tasks", hash}, "/")
 	}
 	return name
 }

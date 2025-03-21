@@ -132,10 +132,11 @@ func NewQueue(name string, opts ...QueueOption) Queue {
 }
 
 func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
+	parent := strings.Join([]string{"projects", queue.project, "locations", queue.region, "queues", queue.name}, "/")
 	req := &pb.CreateTaskRequest{
-		Parent: strings.Join([]string{"projects", queue.project, "locations", queue.region, "queues", queue.name}, "/"),
+		Parent: parent,
 		Task: &pb.Task{
-			Name: generateTaskName(task.name),
+			Name: generateTaskName(parent, task.name),
 			MessageType: &pb.Task_HttpRequest{
 				HttpRequest: &pb.HttpRequest{
 					HttpMethod: pb.HttpMethod_POST,
@@ -183,10 +184,11 @@ func (queue *gcloudQueue) SendExternal(ctx context.Context, task *ExternalTask) 
 		return fmt.Errorf("cloudtasks: cannot marshal task payload %T: %w", payload, err)
 	}
 
+	parent := strings.Join([]string{"projects", queue.project, "locations", queue.region, "queues", queue.name}, "/")
 	req := &pb.CreateTaskRequest{
-		Parent: strings.Join([]string{"projects", queue.project, "locations", queue.region, "queues", queue.name}, "/"),
+		Parent: parent,
 		Task: &pb.Task{
-			Name: generateTaskName(task.name),
+			Name: generateTaskName(parent, task.name),
 			MessageType: &pb.Task_HttpRequest{
 				HttpRequest: &pb.HttpRequest{
 					HttpMethod: pb.HttpMethod_POST,

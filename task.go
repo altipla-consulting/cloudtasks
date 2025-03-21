@@ -1,9 +1,11 @@
 package cloudtasks
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 )
 
 // Task is a task sent or receieved from a queue.
@@ -57,6 +59,7 @@ func WithName(name string) TaskOption {
 type ExternalTask struct {
 	URL     string
 	Payload any
+	name    string
 }
 
 var _ slog.LogValuer = new(ExternalTask)
@@ -68,4 +71,13 @@ func (task *ExternalTask) LogValue() slog.Value {
 		return slog.GroupValue(slog.String("url", task.URL), slog.String("payload-err", err.Error()))
 	}
 	return slog.GroupValue(slog.String("url", task.URL), slog.String("payload", string(payload)))
+}
+
+// generateTaskName generates name with hash.
+func generateTaskName(parent, name string) string {
+	if name != "" {
+		hash := fmt.Sprintf("%x", md5.Sum([]byte(string(name))))[:8]
+		return strings.Join([]string{parent, "tasks", hash}, "/")
+	}
+	return name
 }

@@ -20,6 +20,8 @@ import (
 	"github.com/VictoriaMetrics/metrics"
 	"github.com/altipla-consulting/errors"
 	"google.golang.org/api/idtoken"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -159,6 +161,10 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 	var lastErr error
 	for i := 0; i < 3 && ctx.Err() == nil; i++ {
 		if err := queue.createTask(ctx, req); err != nil {
+			if status.Code(err) == codes.AlreadyExists {
+				metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_already_exists_total{queue=%q,task=%q}", queue.name, task.name)).Inc()
+				return nil
+			}
 			lastErr = fmt.Errorf("%w: %w", ErrCannotSendTask, err)
 			time.Sleep(1 * time.Second)
 			continue
@@ -208,6 +214,10 @@ func (queue *gcloudQueue) SendExternal(ctx context.Context, task *ExternalTask) 
 	var lastErr error
 	for i := 0; i < 3 && ctx.Err() == nil; i++ {
 		if err := queue.createTask(ctx, req); err != nil {
+			if status.Code(err) == codes.AlreadyExists {
+				metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_already_exists_total{queue=%q,task=%q}", queue.name, task.name)).Inc()
+				return nil
+			}
 			lastErr = fmt.Errorf("%w: %w", ErrCannotSendTask, err)
 			time.Sleep(1 * time.Second)
 			continue

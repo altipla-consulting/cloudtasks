@@ -11,6 +11,7 @@ require (
 	github.com/altipla-consulting/doris v0.13.5
 	github.com/altipla-consulting/errors v1.5.1
 	google.golang.org/api v0.222.0
+	google.golang.org/grpc v1.70.0
 )
 
 require (
@@ -48,7 +49,6 @@ require (
 	google.golang.org/genproto v0.0.0-20250219182151-9fdb1cabc7b2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250219182151-9fdb1cabc7b2 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250219182151-9fdb1cabc7b2 // indirect
-	google.golang.org/grpc v1.70.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	libs.altipla.consulting v1.186.1 // indirect
 )

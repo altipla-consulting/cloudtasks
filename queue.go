@@ -20,6 +20,8 @@ import (
 	"github.com/VictoriaMetrics/metrics"
 	"github.com/altipla-consulting/errors"
 	"google.golang.org/api/idtoken"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -166,6 +168,10 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 		break
 	}
 	if lastErr != nil {
+		if status.Code(lastErr) == codes.AlreadyExists {
+			metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_already_exists_total{queue=%q,task=%q}", queue.name, task.name)).Inc()
+			return nil
+		}
 		return lastErr
 	}
 
@@ -215,6 +221,10 @@ func (queue *gcloudQueue) SendExternal(ctx context.Context, task *ExternalTask) 
 		break
 	}
 	if lastErr != nil {
+		if status.Code(lastErr) == codes.AlreadyExists {
+			metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_already_exists_total{queue=%q,task=%q}", queue.name, task.name)).Inc()
+			return nil
+		}
 		return lastErr
 	}
 

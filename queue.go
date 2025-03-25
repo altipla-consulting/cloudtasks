@@ -162,7 +162,7 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 	for i := 0; i < 3 && ctx.Err() == nil; i++ {
 		if err := queue.createTask(ctx, req); err != nil {
 			if status.Code(err) == codes.AlreadyExists {
-				metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_already_exists_total{queue=%q,task=%q}", queue.name, task.name)).Inc()
+				metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_already_exists_total{queue=%q}", queue.name)).Inc()
 				return nil
 			}
 			lastErr = fmt.Errorf("%w: %w", ErrCannotSendTask, err)
@@ -215,7 +215,7 @@ func (queue *gcloudQueue) SendExternal(ctx context.Context, task *ExternalTask) 
 	for i := 0; i < 3 && ctx.Err() == nil; i++ {
 		if err := queue.createTask(ctx, req); err != nil {
 			if status.Code(err) == codes.AlreadyExists {
-				metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_already_exists_total{queue=%q,task=%q}", queue.name, task.name)).Inc()
+				metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_already_exists_total{queue=%q}", queue.name)).Inc()
 				return nil
 			}
 			lastErr = fmt.Errorf("%w: %w", ErrCannotSendTask, err)

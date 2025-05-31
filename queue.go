@@ -277,6 +277,7 @@ func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) er
 		name:    r.Header.Get("X-CloudTasks-TaskName"),
 		payload: payload,
 		Retries: retries,
+		Queue:   queue,
 	}
 
 	metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_received_total{queue=%q,task=%q}", queue.name, task.key)).Inc()
@@ -329,6 +330,8 @@ type localQueue struct {
 
 func (queue *localQueue) Send(ctx context.Context, task *Task) error {
 	go func() {
+		task.Queue = queue
+
 		if err := funcs[task.key].fn(context.Background(), task); err != nil {
 			slog.Error("cloudtasks: failed to execute simulated task",
 				slog.String("err", err.Error()),

@@ -31,29 +31,20 @@ func initTestbed() {
 }
 
 var simpleWorkflow = workflows.Define("simple", func(run *workflows.Run[any]) error {
-	err := workflows.Step(run, "step-a", func(ctx context.Context) error {
+	workflows.Step(run, "step-a", func(ctx context.Context) error {
 		slog.Debug("step a")
 		return nil
 	})
-	if err != nil {
-		return errors.Trace(err)
-	}
 
-	err = workflows.Step(run, "step-b", func(ctx context.Context) error {
+	workflows.Step(run, "step-b", func(ctx context.Context) error {
 		slog.Debug("step b")
 		return nil
 	})
-	if err != nil {
-		return errors.Trace(err)
-	}
 
-	err = workflows.Step(run, "end", func(ctx context.Context) error {
+	workflows.Step(run, "end", func(ctx context.Context) error {
 		waitCh <- struct{}{}
 		return nil
 	})
-	if err != nil {
-		return errors.Trace(err)
-	}
 
 	return nil
 })
@@ -66,7 +57,7 @@ func TestSimple(t *testing.T) {
 }
 
 var returnWorkflow = workflows.Define("return", func(run *workflows.Run[string]) error {
-	stepA, err := workflows.StepReturn(run, "step-a", func(ctx context.Context) (string, error) {
+	stepA := workflows.StepReturn(run, "step-a", func(ctx context.Context) (string, error) {
 		if run.Payload != "start-payload" {
 			return "", errors.Errorf("run.Payload is %v, expected start-payload", run.Payload)
 		}
@@ -74,11 +65,8 @@ var returnWorkflow = workflows.Define("return", func(run *workflows.Run[string])
 		slog.Debug("step a")
 		return "step-a-return", nil
 	})
-	if err != nil {
-		return errors.Trace(err)
-	}
 
-	stepB, err := workflows.StepReturn(run, "step-b", func(ctx context.Context) (int32, error) {
+	stepB := workflows.StepReturn(run, "step-b", func(ctx context.Context) (int32, error) {
 		if stepA != "step-a-return" {
 			return 0, errors.Errorf("step a returned %v, expected step-a-return", stepA)
 		}
@@ -86,11 +74,8 @@ var returnWorkflow = workflows.Define("return", func(run *workflows.Run[string])
 		slog.Debug("step b")
 		return 5, nil
 	})
-	if err != nil {
-		return errors.Trace(err)
-	}
 
-	err = workflows.Step(run, "end", func(ctx context.Context) error {
+	workflows.Step(run, "end", func(ctx context.Context) error {
 		if stepB != 5 {
 			return errors.Errorf("step b returned %v, expected 5", stepB)
 		}
@@ -98,9 +83,6 @@ var returnWorkflow = workflows.Define("return", func(run *workflows.Run[string])
 		waitCh <- struct{}{}
 		return nil
 	})
-	if err != nil {
-		return errors.Trace(err)
-	}
 
 	return nil
 })
@@ -109,24 +91,5 @@ func TestReturn(t *testing.T) {
 	initTestbed()
 
 	require.NoError(t, returnWorkflow.Start(context.Background(), queue, "start-payload"))
-	waitWorkflow(t)
-}
-
-var errorWorkflow = workflows.Define("error", func(run *workflows.Run[any]) error {
-	err := workflows.Step(run, "step-a", func(ctx context.Context) error {
-		return errors.New("step-a-error")
-	})
-	if err != nil {
-		waitCh <- struct{}{}
-		return errors.Trace(err)
-	}
-
-	return nil
-})
-
-func TestError(t *testing.T) {
-	initTestbed()
-
-	require.NoError(t, errorWorkflow.Start(context.Background(), queue, nil))
 	waitWorkflow(t)
 }

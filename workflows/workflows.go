@@ -59,10 +59,14 @@ func (w *Workflow[TPayload]) Start(ctx context.Context, queue cloudtasks.Queue, 
 	return errors.Trace(w.task.Call(ctx, queue, state, cloudtasks.WithName(state.taskName())))
 }
 
-func (w *Workflow[TPayload]) runStepFn(ctx context.Context, task *cloudtasks.Task) error {
+func (w *Workflow[TPayload]) runStepFn(ctx context.Context, task *cloudtasks.Task) (retErr error) {
 	defer func() {
 		if r := recover(); r != nil {
-			if err, ok := r.(error); ok && errors.Is(err, errWorkflowRunStep) {
+			if err, ok := r.(error); ok {
+				if errors.Is(err, errWorkflowRunStep) {
+					return
+				}
+				retErr = errors.Trace(err)
 				return
 			}
 			panic(r)
@@ -90,14 +94,13 @@ func (w *Workflow[TPayload]) runStepFn(ctx context.Context, task *cloudtasks.Tas
 	return nil
 }
 
-func Step[TPayload any](run *Run[TPayload], name string, step func(ctx context.Context) error) error {
-	_, err := StepReturn(run, name, func(ctx context.Context) (bool, error) {
-		return false, errors.Trace(step(ctx))
+func Step[TPayload any](run *Run[TPayload], name string, step func(ctx context.Context) error) {
+	StepReturn(run, name, func(ctx context.Context) (bool, error) {
+		return false, step(ctx)
 	})
-	return errors.Trace(err)
 }
 
-func StepReturn[TReturn any, TPayload any](run *Run[TPayload], name string, step func(ctx context.Context) (TReturn, error)) (TReturn, error) {
+func StepReturn[TReturn any, TPayload any](run *Run[TPayload], name string, step func(ctx context.Context) (TReturn, error)) TReturn {
 	defer func() { run.step++ }()
 
 	fullname := fmt.Sprintf("%s:%d", name, run.step)
@@ -106,27 +109,27 @@ func StepReturn[TReturn any, TPayload any](run *Run[TPayload], name string, step
 		if run.state.Names[run.step] == fullname {
 			var ret TReturn
 			if err := json.Unmarshal(run.state.Returns[run.step], &ret); err != nil {
-				return ret, errors.Trace(err)
+				panic(errors.Trace(err))
 			}
-			return ret, nil
+			return ret
 		}
-		return *new(TReturn), errors.Errorf("workflows: step %s called in the wrong order, expected %s", fullname, run.state.Names[run.step])
+		panic(errors.Errorf("workflows: step %s called in the wrong order, expected %s", fullname, run.state.Names[run.step]))
 	}
 
 	ret, err := step(run.ctx)
 	if err != nil {
-		return ret, errors.Trace(err)
+		panic(errors.Trace(err))
 	}
 
 	run.state.Names = append(run.state.Names, fullname)
 	raw, err := json.Marshal(ret)
 	if err != nil {
-		return ret, errors.Trace(err)
+		panic(errors.Errorf("workflows: failed to serialize return value of %s: %w", fullname, err))
 	}
 	run.state.Returns = append(run.state.Returns, raw)
 	run.state.Step++
 	if err := run.task.Call(run.ctx, run.queue, run.state, cloudtasks.WithName(run.state.taskName())); err != nil {
-		return ret, errors.Errorf("workflows: failed to call step %s: %w", fullname, err)
+		panic(errors.Errorf("workflows: failed to call step %s: %w", fullname, err))
 	}
 
 	panic(errWorkflowRunStep)

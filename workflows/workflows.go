@@ -52,7 +52,7 @@ func (s *runState[TPayload]) taskName() string {
 }
 
 type startOptions struct {
-	ID string
+	id string
 }
 
 // WorkflowsOption configures workflows when creating them.
@@ -63,22 +63,21 @@ type StartOption func(state *startOptions)
 // Google Cloud Tasks documentation before using it.
 func WithName(name string) StartOption {
 	return func(opt *startOptions) {
-		opt.ID = name
+		opt.id = name
 	}
 }
 
 func (w *Workflow[TPayload]) Start(ctx context.Context, queue cloudtasks.Queue, payload TPayload, opts ...StartOption) error {
-	state := runState[TPayload]{
-		ID:      ksuid.New().String(),
-		Payload: payload,
+	o := startOptions{
+		id: ksuid.New().String(),
+	}
+	for _, opt := range opts {
+		opt(&o)
 	}
 
-	option := new(startOptions)
-	for _, opt := range opts {
-		opt(option)
-	}
-	if option.ID != "" {
-		state.ID = option.ID
+	state := runState[TPayload]{
+		ID:      o.id,
+		Payload: payload,
 	}
 
 	return errors.Trace(w.task.Call(ctx, queue, state, cloudtasks.WithName(state.taskName())))

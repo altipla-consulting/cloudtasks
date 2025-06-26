@@ -43,16 +43,16 @@ func (s *runState[TPayload]) taskName() string {
 	return fmt.Sprintf("%s:%d", s.ID, s.Step)
 }
 
-type startOptions struct {
-	ID string
-}
-
 type runState[TPayload any] struct {
 	startOptions
 	Step    int
 	Names   []string
 	Returns []json.RawMessage
 	Payload TPayload
+}
+
+type startOptions struct {
+	ID string
 }
 
 // WorkflowsOption configures workflows when creating them.

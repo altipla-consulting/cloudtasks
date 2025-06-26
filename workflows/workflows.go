@@ -40,44 +40,44 @@ func Define[TPayload any](name string, def func(run *Run[TPayload]) error) *Work
 }
 
 // baseState contiene los campos comunes que no dependen del tipo genérico
-type baseState struct {
-	ID      string
-	Step    int
-	Names   []string
-	Returns []json.RawMessage
+type startOptions struct {
+	ID string
 }
 
-func (s *baseState) taskName() string {
+func (s *runState[TPayload]) taskName() string {
 	return fmt.Sprintf("%s:%d", s.ID, s.Step)
 }
 
 type runState[TPayload any] struct {
-	baseState
+	startOptions
+	Step    int
+	Names   []string
+	Returns []json.RawMessage
 	Payload TPayload
 }
 
 // StartOption configura workflows cuando se crean, sin ser genérico
-type StartOption func(state *baseState)
+type StartOption func(state *startOptions)
 
 // WithName configura un nombre personalizado para el workflow. Por defecto será autogenerado. Un nombre personalizado podría ser problemático
 // con tombstones (nombres de workflow que no se pueden repetir) y controles de concurrencia, así que asígnalo con cuidado y lee
 // la documentación de Google Cloud Tasks antes de usarlo.
 func WithName(name string) StartOption {
-	return func(state *baseState) {
+	return func(state *startOptions) {
 		state.ID = name
 	}
 }
 
 func (w *Workflow[TPayload]) Start(ctx context.Context, queue cloudtasks.Queue, payload TPayload, opts ...StartOption) error {
 	state := runState[TPayload]{
-		baseState: baseState{
+		startOptions: startOptions{
 			ID: ksuid.New().String(),
 		},
 		Payload: payload,
 	}
 
 	for _, opt := range opts {
-		opt(&state.baseState)
+		opt(&state.startOptions)
 	}
 
 	return errors.Trace(w.task.Call(ctx, queue, state, cloudtasks.WithName(state.taskName())))

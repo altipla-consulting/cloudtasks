@@ -59,7 +59,7 @@ func TestSimple(t *testing.T) {
 func TestSimpleWithName(t *testing.T) {
 	initTestbed()
 
-	require.NoError(t, simpleWorkflow.Start(context.Background(), queue, nil, workflows.WithName("simple")))
+	require.NoError(t, simpleWorkflow.Start(context.Background(), queue, "payload", workflows.WithName("simple")))
 	waitWorkflow(t)
 }
 
@@ -98,5 +98,12 @@ func TestReturn(t *testing.T) {
 	initTestbed()
 
 	require.NoError(t, returnWorkflow.Start(context.Background(), queue, "start-payload"))
+	waitWorkflow(t)
+}
+
+func TestReturnWithName(t *testing.T) {
+	initTestbed()
+
+	require.NoError(t, returnWorkflow.Start(context.Background(), queue, "start-payload", workflows.WithName("return")))
 	waitWorkflow(t)
 }

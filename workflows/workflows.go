@@ -39,16 +39,16 @@ func Define[TPayload any](name string, def func(run *Run[TPayload]) error) *Work
 	return w
 }
 
-func (s *runState[TPayload]) taskName() string {
-	return fmt.Sprintf("%s:%d", s.ID, s.Step)
-}
-
 type runState[TPayload any] struct {
-	startOptions
+	ID      string
 	Step    int
 	Names   []string
 	Returns []json.RawMessage
 	Payload TPayload
+}
+
+func (s *runState[TPayload]) taskName() string {
+	return fmt.Sprintf("%s:%d", s.ID, s.Step)
 }
 
 type startOptions struct {
@@ -62,21 +62,23 @@ type StartOption func(state *startOptions)
 // with tombstones (workflow names that can't be repeated) and concurrency controls, so assign it with care and read
 // Google Cloud Tasks documentation before using it.
 func WithName(name string) StartOption {
-	return func(state *startOptions) {
-		state.ID = name
+	return func(opt *startOptions) {
+		opt.ID = name
 	}
 }
 
 func (w *Workflow[TPayload]) Start(ctx context.Context, queue cloudtasks.Queue, payload TPayload, opts ...StartOption) error {
 	state := runState[TPayload]{
-		startOptions: startOptions{
-			ID: ksuid.New().String(),
-		},
+		ID:      ksuid.New().String(),
 		Payload: payload,
 	}
 
+	option := new(startOptions)
 	for _, opt := range opts {
-		opt(&state.startOptions)
+		opt(option)
+	}
+	if option.ID != "" {
+		state.ID = option.ID
 	}
 
 	return errors.Trace(w.task.Call(ctx, queue, state, cloudtasks.WithName(state.taskName())))

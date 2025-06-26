@@ -56,6 +56,13 @@ func TestSimple(t *testing.T) {
 	waitWorkflow(t)
 }
 
+func TestSimpleWithName(t *testing.T) {
+	initTestbed()
+
+	require.NoError(t, simpleWorkflow.Start(context.Background(), queue, nil, workflows.WithName("simple")))
+	waitWorkflow(t)
+}
+
 var returnWorkflow = workflows.Define("return", func(run *workflows.Run[string]) error {
 	stepA := workflows.StepReturn(run, "step-a", func(ctx context.Context) (string, error) {
 		if run.Payload != "start-payload" {

@@ -53,7 +53,9 @@ func initTestbed(t *testing.T) {
 		Addr:    "0.0.0.0:25000",
 		Handler: mux,
 	}
-	go server.ListenAndServe()
+	go func() {
+		require.NoError(t, server.ListenAndServe())
+	}()
 	slog.Debug("test server started")
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())

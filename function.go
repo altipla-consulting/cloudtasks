@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"reflect"
 	"runtime"
 	"testing"
 )
@@ -13,10 +12,6 @@ import (
 var (
 	// registry of all delayed functions
 	funcs = make(map[string]*Function)
-
-	// precomputed types
-	contextType = reflect.TypeOf((*context.Context)(nil)).Elem()
-	errorType   = reflect.TypeOf((*error)(nil)).Elem()
 )
 
 // TaskFn should be implemented by any task function.

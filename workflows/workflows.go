@@ -21,7 +21,8 @@ type Workflow[TPayload any] struct {
 }
 
 type Run[TPayload any] struct {
-	Payload TPayload
+	Payload     TPayload
+	TaskRetries int64
 
 	ctx   context.Context
 	task  *cloudtasks.Function
@@ -105,11 +106,12 @@ func (w *Workflow[TPayload]) runStepFn(ctx context.Context, task *cloudtasks.Tas
 	slog.Debug("workflows: run step", slog.String("workflow", w.name), slog.Int("step", state.Step), slog.String("run-id", state.ID))
 
 	run := &Run[TPayload]{
-		Payload: state.Payload,
-		ctx:     ctx,
-		task:    w.task,
-		queue:   task.Queue,
-		state:   state,
+		Payload:     state.Payload,
+		TaskRetries: task.Retries,
+		ctx:         ctx,
+		task:        w.task,
+		queue:       task.Queue,
+		state:       state,
 	}
 	if err := w.def(run); err != nil {
 		return errors.Trace(err)

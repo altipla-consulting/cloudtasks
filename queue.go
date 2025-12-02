@@ -332,7 +332,7 @@ func (queue *localQueue) Send(ctx context.Context, task *Task) error {
 	go func() {
 		task.Queue = queue
 
-		if err := funcs[task.key].fn(context.Background(), task); err != nil {
+		if err := safeCall(context.Background(), task.key, task); err != nil {
 			slog.Error("cloudtasks: failed to execute simulated task",
 				slog.String("err", err.Error()),
 				slog.String("task", task.key),

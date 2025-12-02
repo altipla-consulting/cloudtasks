@@ -3,10 +3,15 @@ package workflows_test
 import (
 	"context"
 	"log/slog"
+	"net/http"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/altipla-consulting/errors"
+	"github.com/altipla-consulting/telemetry"
+	"github.com/altipla-consulting/telemetry/logging"
+	"github.com/segmentio/ksuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/altipla-consulting/cloudtasks"
@@ -24,10 +29,34 @@ func waitWorkflow(t *testing.T) {
 	}
 }
 
-var queue = cloudtasks.NewQueue("test-workflows")
+var queue = cloudtasks.NewQueue(
+	"cloudtasks-tests",
+	cloudtasks.WithForcedProductionMode(),
+	cloudtasks.WithHostname(os.Getenv("REMOTE_HOSTNAME")),
+	cloudtasks.WithProject("altipla-dev", "709027458951"),
+	cloudtasks.WithRegion("europe-west1"),
+	cloudtasks.WithServiceAccountEmail("cloudtasks-tests@altipla-dev.iam.gserviceaccount.com"),
+)
 
-func initTestbed() {
-	slog.SetLogLoggerLevel(slog.LevelDebug)
+func initTestbed(t *testing.T) {
+	telemetry.Configure(logging.Debug())
+
+	if os.Getenv("REMOTE_HOSTNAME") == "" {
+		t.Skip("skipping remote test without REMOTE_HOSTNAME env variable")
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle(cloudtasks.Handler())
+	server := &http.Server{
+		Addr:    "0.0.0.0:25000",
+		Handler: mux,
+	}
+	go server.ListenAndServe()
+	slog.Debug("test server started")
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+		slog.Debug("test server stopped")
+	})
 }
 
 var simpleWorkflow = workflows.Define("simple", func(run *workflows.Run[any]) error {
@@ -41,25 +70,22 @@ var simpleWorkflow = workflows.Define("simple", func(run *workflows.Run[any]) er
 		return nil
 	})
 
-	workflows.Step(run, "end", func(ctx context.Context) error {
-		waitCh <- struct{}{}
-		return nil
-	})
-
+	waitCh <- struct{}{}
 	return nil
 })
 
 func TestSimple(t *testing.T) {
-	initTestbed()
+	initTestbed(t)
 
 	require.NoError(t, simpleWorkflow.Start(context.Background(), queue, nil))
 	waitWorkflow(t)
 }
 
 func TestSimpleWithName(t *testing.T) {
-	initTestbed()
+	initTestbed(t)
 
-	require.NoError(t, simpleWorkflow.Start(context.Background(), queue, "payload", workflows.WithName("simple")))
+	name := ksuid.New().String()
+	require.NoError(t, simpleWorkflow.Start(context.Background(), queue, "payload", workflows.WithName(name)))
 	waitWorkflow(t)
 }
 
@@ -87,23 +113,49 @@ var returnWorkflow = workflows.Define("return", func(run *workflows.Run[string])
 			return errors.Errorf("step b returned %v, expected 5", stepB)
 		}
 
-		waitCh <- struct{}{}
 		return nil
 	})
 
+	waitCh <- struct{}{}
 	return nil
 })
 
 func TestReturn(t *testing.T) {
-	initTestbed()
+	initTestbed(t)
 
 	require.NoError(t, returnWorkflow.Start(context.Background(), queue, "start-payload"))
 	waitWorkflow(t)
 }
 
 func TestReturnWithName(t *testing.T) {
-	initTestbed()
+	initTestbed(t)
 
-	require.NoError(t, returnWorkflow.Start(context.Background(), queue, "start-payload", workflows.WithName("return")))
+	name := ksuid.New().String()
+	require.NoError(t, returnWorkflow.Start(context.Background(), queue, "start-payload", workflows.WithName(name)))
+	waitWorkflow(t)
+}
+
+var panicContinuesAfterRetries = workflows.Define("panic-continues-after-retries", func(run *workflows.Run[any]) error {
+	workflows.Step(run, "step-a", func(ctx context.Context) error {
+		slog.Debug("step a", slog.Int64("retries", run.TaskRetries))
+		if run.TaskRetries < 3 {
+			panic("step a panic")
+		}
+		return nil
+	})
+
+	workflows.Step(run, "step-b", func(ctx context.Context) error {
+		slog.Debug("step b")
+		return nil
+	})
+
+	waitCh <- struct{}{}
+	return nil
+})
+
+func TestPanicContinuesAfterRetries(t *testing.T) {
+	initTestbed(t)
+
+	require.NoError(t, panicContinuesAfterRetries.Start(context.Background(), queue, nil))
 	waitWorkflow(t)
 }

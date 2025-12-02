@@ -88,6 +88,7 @@ func (w *Workflow[TPayload]) runStepFn(ctx context.Context, task *cloudtasks.Tas
 	defer func() {
 		if r := recover(); r != nil {
 			if err, ok := r.(error); ok {
+				// Ignore execution interruptions to run the next step.
 				if errors.Is(err, errWorkflowRunStep) {
 					return
 				}
@@ -131,6 +132,7 @@ func StepReturn[TReturn any, TPayload any](run *Run[TPayload], name string, step
 
 	fullname := fmt.Sprintf("%s:%d", name, run.step)
 
+	// If the result has already executed before return it directly.
 	if run.step < run.state.Step {
 		if run.state.Names[run.step] == fullname {
 			var ret TReturn
@@ -139,9 +141,10 @@ func StepReturn[TReturn any, TPayload any](run *Run[TPayload], name string, step
 			}
 			return ret
 		}
-		panic(errors.Errorf("workflows: step %s called in the wrong order, expected %s", fullname, run.state.Names[run.step]))
+		panic(errors.Errorf("workflows: step %q called in the wrong order, expected %q", fullname, run.state.Names[run.step]))
 	}
 
+	// Otherwise execute the step and store the result.
 	ret, err := step(run.ctx)
 	if err != nil {
 		panic(errors.Trace(err))
@@ -155,8 +158,9 @@ func StepReturn[TReturn any, TPayload any](run *Run[TPayload], name string, step
 	run.state.Returns = append(run.state.Returns, raw)
 	run.state.Step++
 	if err := run.task.Call(run.ctx, run.queue, run.state, cloudtasks.WithName(run.state.taskName())); err != nil {
-		panic(errors.Errorf("workflows: failed to call step %s: %w", fullname, err))
+		panic(errors.Errorf("workflows: failed to call step %q: %w", fullname, err))
 	}
 
+	// Interrupt the workflow execution to run the next step in a different task.
 	panic(errWorkflowRunStep)
 }

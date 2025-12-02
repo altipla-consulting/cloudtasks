@@ -42,6 +42,10 @@ type QueueOption func(*gcloudQueue)
 
 // WithRegion configures a custom region for the queue. By default it will use the region of the Cloud Run service.
 func WithRegion(region string) QueueOption {
+	if region == "" {
+		panic("cloudtasks: WithRegion requires a region")
+	}
+
 	return func(queue *gcloudQueue) {
 		queue.region = region
 	}
@@ -50,36 +54,79 @@ func WithRegion(region string) QueueOption {
 // WithHostname configures the queue for an application outside of Cloud Run. Pass only the hostname, without the
 // protocol or trailing slash.
 func WithHostname(hostname string) QueueOption {
+	if hostname == "" {
+		panic("cloudtasks: WithHostname requires a hostname")
+	}
+	if strings.HasPrefix(hostname, "http") {
+		panic("cloudtasks: WithHostname requires a hostname without the protocol or trailing slash")
+	}
+
 	return func(queue *gcloudQueue) {
 		queue.audience = fmt.Sprintf("https://%s", hostname)
+	}
+}
+
+// WithForcedProductionMode forces the queue to use the production mode. This is useful for testing purposes.
+func WithForcedProductionMode() QueueOption {
+	return func(queue *gcloudQueue) {
+		queue.forcedProductionMode = true
+	}
+}
+
+// WithProject configures the project and numeric project ID for the queue. By default it will use the project and numeric
+// project ID obtained from the metadata server.
+func WithProject(project, numericProject string) QueueOption {
+	if project == "" {
+		panic("cloudtasks: WithProject requires a project name")
+	}
+	if numericProject == "" {
+		panic("cloudtasks: WithProject requires a numeric project ID")
+	}
+
+	return func(queue *gcloudQueue) {
+		queue.project = project
+		queue.numericProject = numericProject
+	}
+}
+
+// WithServiceAccountEmail configures the service account email for the queue. By default it will use the default service account email
+// obtained from the metadata server.
+func WithServiceAccountEmail(serviceAccountEmail string) QueueOption {
+	if serviceAccountEmail == "" {
+		panic("cloudtasks: WithServiceAccountEmail requires a service account email")
+	}
+
+	return func(queue *gcloudQueue) {
+		queue.serviceAccountEmail = serviceAccountEmail
 	}
 }
 
 type gcloudQueue struct {
 	name string
 
-	region   string
-	audience string
-
-	initErr                 error
-	client                  *cloudtasks.Client
 	project, numericProject string
+	region                  string
+	audience                string
 	serviceAccountEmail     string
+
+	initErr              error
+	client               *cloudtasks.Client
+	forcedProductionMode bool
 }
 
 // NewQueue initializes a new queue.
 func NewQueue(name string, opts ...QueueOption) Queue {
-	// Local deployments won't have this environment variable defined.
-	if os.Getenv("K_SERVICE") == "" {
-		return &localQueue{name: name}
-	}
-
 	queue := &gcloudQueue{name: name}
-	allQueues = append(allQueues, queue)
-
 	for _, opt := range opts {
 		opt(queue)
 	}
+
+	// Local deployments receive a fake implementation of the queue.
+	if os.Getenv("K_SERVICE") == "" && !queue.forcedProductionMode {
+		return &localQueue{name: name}
+	}
+
+	allQueues = append(allQueues, queue)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -87,28 +134,30 @@ func NewQueue(name string, opts ...QueueOption) Queue {
 	var err error
 	queue.client, err = cloudtasks.NewClient(ctx)
 	if err != nil {
-		queue.initErr = fmt.Errorf("cloudtasks: cannot initialize remote client: %w", err)
+		queue.initErr = errors.Errorf("cloudtasks: cannot initialize remote client: %w", err)
 		return queue
 	}
 
-	queue.project, err = metadata.ProjectIDWithContext(ctx)
-	if err != nil {
-		queue.initErr = fmt.Errorf("cloudtasks: cannot get google project name: %w", err)
-		return queue
+	if queue.project == "" {
+		queue.project, err = metadata.ProjectIDWithContext(ctx)
+		if err != nil {
+			queue.initErr = errors.Errorf("cloudtasks: cannot get google project name: %w", err)
+			return queue
+		}
 	}
 	if queue.region == "" {
 		// Detect Cloud Run to read the region directly or extract it from the zone in other environments.
 		if os.Getenv("K_CONFIGURATION") != "" || os.Getenv("CLOUD_RUN_JOB") != "" {
 			region, err := metadata.GetWithContext(ctx, "instance/region")
 			if err != nil {
-				queue.initErr = fmt.Errorf("cloudtasks: cannot get google cloud run region: %w", err)
+				queue.initErr = errors.Errorf("cloudtasks: cannot get google cloud run region: %w", err)
 				return queue
 			}
 			queue.region = path.Base(region)
 		} else {
 			zone, err := metadata.ZoneWithContext(ctx)
 			if err != nil {
-				queue.initErr = fmt.Errorf("cloudtasks: cannot get google zone: %w", err)
+				queue.initErr = errors.Errorf("cloudtasks: cannot get google zone: %w", err)
 				return queue
 			}
 			zone = path.Base(zone)
@@ -118,22 +167,27 @@ func NewQueue(name string, opts ...QueueOption) Queue {
 	if queue.audience == "" {
 		queue.numericProject, err = metadata.NumericProjectIDWithContext(ctx)
 		if err != nil {
-			queue.initErr = fmt.Errorf("cloudtasks: cannot get google numeric project: %w", err)
+			queue.initErr = errors.Errorf("cloudtasks: cannot get google numeric project: %w", err)
 			return queue
 		}
 		queue.audience = fmt.Sprintf("https://%s-%s.%s.run.app", os.Getenv("K_SERVICE"), queue.numericProject, queue.region)
 	}
-
-	queue.serviceAccountEmail, err = metadata.EmailWithContext(ctx, "default")
-	if err != nil {
-		queue.initErr = fmt.Errorf("cloudtasks: cannot get default service account email: %w", err)
-		return queue
+	if queue.serviceAccountEmail == "" {
+		queue.serviceAccountEmail, err = metadata.EmailWithContext(ctx, "default")
+		if err != nil {
+			queue.initErr = errors.Errorf("cloudtasks: cannot get default service account email: %w", err)
+			return queue
+		}
 	}
 
 	return queue
 }
 
 func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
+	if queue.initErr != nil {
+		return queue.initErr
+	}
+
 	parent := strings.Join([]string{"projects", queue.project, "locations", queue.region, "queues", queue.name}, "/")
 	req := &pb.CreateTaskRequest{
 		Parent: parent,
@@ -165,7 +219,7 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 				metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_already_exists_total{queue=%q}", queue.name)).Inc()
 				return nil
 			}
-			lastErr = fmt.Errorf("%w: %w", ErrCannotSendTask, err)
+			lastErr = errors.Errorf("%w: %w", ErrCannotSendTask, err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -181,13 +235,17 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 }
 
 func (queue *gcloudQueue) SendExternal(ctx context.Context, task *ExternalTask) error {
+	if queue.initErr != nil {
+		return queue.initErr
+	}
+
 	u, err := url.Parse(task.URL)
 	if err != nil {
-		return fmt.Errorf("cloudtasks: cannot parse external task URL: %w", err)
+		return errors.Errorf("cloudtasks: cannot parse external task URL: %w", err)
 	}
 	payload, err := json.Marshal(task.Payload)
 	if err != nil {
-		return fmt.Errorf("cloudtasks: cannot marshal task payload %T: %w", payload, err)
+		return errors.Errorf("cloudtasks: cannot marshal task payload %T: %w", payload, err)
 	}
 
 	parent := strings.Join([]string{"projects", queue.project, "locations", queue.region, "queues", queue.name}, "/")
@@ -218,7 +276,7 @@ func (queue *gcloudQueue) SendExternal(ctx context.Context, task *ExternalTask) 
 				metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_already_exists_total{queue=%q}", queue.name)).Inc()
 				return nil
 			}
-			lastErr = fmt.Errorf("%w: %w", ErrCannotSendTask, err)
+			lastErr = errors.Errorf("%w: %w", ErrCannotSendTask, err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -241,6 +299,11 @@ func (queue *gcloudQueue) createTask(ctx context.Context, req *pb.CreateTaskRequ
 }
 
 func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) error {
+	if queue.initErr != nil {
+		http.Error(w, queue.initErr.Error(), http.StatusInternalServerError)
+		return nil
+	}
+
 	bearer := extractBearer(r.Header.Get("Authorization"))
 	if bearer == "" {
 		http.Error(w, fmt.Sprintf("cloudtasks: bad token format %q", r.Header.Get("Authorization")), http.StatusUnauthorized)
@@ -291,6 +354,7 @@ func (queue *gcloudQueue) taskHandler(w http.ResponseWriter, r *http.Request) er
 			slog.String("details", errors.Details(err)),
 			slog.Int64("retries", task.Retries),
 		)
+		slog.Debug(errors.Stack(err))
 		metrics.GetOrCreateCounter(fmt.Sprintf("cloudtasks_failed_total{queue=%q,task=%q}", queue.name, task.key)).Inc()
 		return errors.Trace(err)
 	}

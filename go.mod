@@ -8,8 +8,9 @@ require (
 	cloud.google.com/go/cloudtasks v1.13.3
 	cloud.google.com/go/compute/metadata v0.6.0
 	github.com/VictoriaMetrics/metrics v1.35.2
-	github.com/altipla-consulting/doris v0.13.5
+	github.com/altipla-consulting/doris v0.13.6
 	github.com/altipla-consulting/errors v1.5.1
+	github.com/altipla-consulting/telemetry v0.8.3
 	github.com/segmentio/ksuid v1.0.4
 	github.com/stretchr/testify v1.10.0
 	google.golang.org/api v0.222.0
@@ -22,8 +23,7 @@ require (
 	cloud.google.com/go/iam v1.4.0 // indirect
 	connectrpc.com/connect v1.18.1 // indirect
 	github.com/altipla-consulting/env v0.2.2 // indirect
-	github.com/altipla-consulting/sentry v0.6.1 // indirect
-	github.com/altipla-consulting/telemetry v0.8.1 // indirect
+	github.com/altipla-consulting/sentry v0.6.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/getsentry/sentry-go v0.31.1 // indirect
@@ -33,6 +33,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.14.1 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
+	github.com/lmittmann/tint v1.0.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/valyala/fastrand v1.1.0 // indirect

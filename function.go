@@ -102,9 +102,10 @@ func (f *Function) TestCall(t *testing.T, payload interface{}) error {
 	}
 
 	task := &Task{
-		key:     f.key,
-		name:    generateRandomString(10),
-		payload: send.payload,
+		key:          f.key,
+		name:         generateRandomString(10),
+		payload:      send.payload,
+		scheduleTime: send.scheduleTime,
 	}
 	return f.fn(context.Background(), task)
 }

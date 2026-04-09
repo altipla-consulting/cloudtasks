@@ -106,6 +106,7 @@ func (f *Function) TestCall(t *testing.T, payload interface{}) error {
 		name:         generateRandomString(10),
 		payload:      send.payload,
 		scheduleTime: send.scheduleTime,
+		delay:        send.delay,
 	}
 	return f.fn(context.Background(), task)
 }

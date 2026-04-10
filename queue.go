@@ -216,9 +216,6 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 	if !task.scheduleTime.IsZero() {
 		req.Task.ScheduleTime = pbtimestamp.New(task.scheduleTime)
 	}
-	if task.delay > 0 {
-		req.Task.ScheduleTime = pbtimestamp.New(time.Now().Add(task.delay))
-	}
 	var lastErr error
 	for i := 0; i < 10 && ctx.Err() == nil; i++ {
 		if err := queue.createTask(ctx, req); err != nil {

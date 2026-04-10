@@ -72,9 +72,9 @@ func WithScheduleTime(time time.Time) TaskOption {
 }
 
 // WithDelay schedules the task to run after the given delay. This overrides the schedule time.
-func WithDelay(seconds int32) TaskOption {
+func WithDelay(delay time.Duration) TaskOption {
 	return func(task *Task) {
-		task.scheduleTime = time.Now().Add(time.Duration(seconds) * time.Second)
+		task.scheduleTime = time.Now().Add(delay)
 	}
 }
 

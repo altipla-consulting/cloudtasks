@@ -22,6 +22,7 @@ import (
 	"google.golang.org/api/idtoken"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	pbtimestamp "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -211,6 +212,9 @@ func (queue *gcloudQueue) Send(ctx context.Context, task *Task) error {
 				},
 			},
 		},
+	}
+	if !task.scheduleTime.IsZero() {
+		req.Task.ScheduleTime = pbtimestamp.New(task.scheduleTime)
 	}
 	var lastErr error
 	for i := 0; i < 10 && ctx.Err() == nil; i++ {

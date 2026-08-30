@@ -41,11 +41,12 @@ func Define[TPayload any](name string, def func(run *Run[TPayload]) error) *Work
 }
 
 type runState[TPayload any] struct {
-	ID      string
-	Step    int
-	Names   []string
-	Returns []json.RawMessage
-	Payload TPayload
+	ID        string
+	Step      int
+	Names     []string
+	Returns   []json.RawMessage
+	Protobufs []map[string]json.RawMessage
+	Payload   TPayload
 }
 
 func (s *runState[TPayload]) taskName() string {
@@ -139,6 +140,9 @@ func StepReturn[TReturn any, TPayload any](run *Run[TPayload], name string, step
 			if err := json.Unmarshal(run.state.Returns[run.step], &ret); err != nil {
 				panic(errors.Trace(err))
 			}
+			if err := restoreProtobufs(&ret, run.state.Protobufs[run.step]); err != nil {
+				panic(errors.Trace(err))
+			}
 			return ret
 		}
 		panic(errors.Errorf("workflows: step %q called in the wrong order, expected %q", fullname, run.state.Names[run.step]))
@@ -155,7 +159,12 @@ func StepReturn[TReturn any, TPayload any](run *Run[TPayload], name string, step
 	if err != nil {
 		panic(errors.Errorf("workflows: failed to serialize return value of %s: %w", fullname, err))
 	}
+	protobufs, err := collectProtobufs(ret)
+	if err != nil {
+		panic(errors.Trace(err))
+	}
 	run.state.Returns = append(run.state.Returns, raw)
+	run.state.Protobufs = append(run.state.Protobufs, protobufs)
 	run.state.Step++
 	if err := run.task.Call(run.ctx, run.queue, run.state, cloudtasks.WithName(run.state.taskName())); err != nil {
 		panic(errors.Errorf("workflows: failed to call step %q: %w", fullname, err))

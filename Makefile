@@ -13,3 +13,13 @@ gofmt:
 	@gofmt -s -w $(FILES)
 	@gofmt -r '&α{} -> new(α)' -w $(FILES)
 	@impsort . -p github.com/altipla-consulting/cloudtasks
+
+protos: .generate-protos
+
+regenerate-protos: .clean-protos protos
+
+.generate-protos:
+	@buf generate
+
+.clean-protos:
+	rm -rf workflows/testdata/gen

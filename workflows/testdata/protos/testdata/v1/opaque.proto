@@ -1,0 +1,12 @@
+edition = "2023";
+
+package testdata.v1;
+
+import "google/protobuf/go_features.proto";
+
+option features.(pb.go).api_level = API_OPAQUE;
+option go_package = "github.com/altipla-consulting/cloudtasks/workflows/testdata/gen/testdata/v1;workflowstestpb";
+
+message OpaqueMessage {
+  string name = 1;
+}

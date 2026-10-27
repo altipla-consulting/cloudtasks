@@ -7,11 +7,12 @@
 package workflowstestpb
 
 import (
+	reflect "reflect"
+	unsafe "unsafe"
+
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	_ "google.golang.org/protobuf/types/gofeaturespb"
-	reflect "reflect"
-	unsafe "unsafe"
 )
 
 const (
@@ -89,7 +90,7 @@ type OpaqueMessage_builder struct {
 }
 
 func (b0 OpaqueMessage_builder) Build() *OpaqueMessage {
-	m0 := &OpaqueMessage{}
+	m0 := new(OpaqueMessage)
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Name != nil {
